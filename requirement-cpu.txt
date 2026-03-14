@@ -1,0 +1,7 @@
+torch
+torchvision
+datasets
+transformers
+pillow
+tqdm
+pyyaml
