@@ -6,4 +6,5 @@ clip_cl_env/
 *.pt
 *.ckpt
 CL-clip_cl_env
-test.ipynb
+*.ipynb
+.ipynb_checkpoints/
