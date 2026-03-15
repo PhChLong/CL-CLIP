@@ -61,7 +61,7 @@ def get_task_sequence():
         test_data = dataset[task['test_split']]
         label_key = 'fine_label' if 'fine_label' in train_data.features else 'label'
         label_names = train_data.features[label_key].names
-        task.append( {
+        tasks.append( {
             'name': tasks['name'],
             'train': train_data,
             'test': test_data,
