@@ -12,9 +12,6 @@ def get_flowers():
 def get_cars():
     return load_dataset('tanganke/stanford_cars')
 
-def get_aircraft():
-    return load_dataset('HuggingFaceM4/FGVC-Aircraft', 'variant')
-
 def get_dtd():
     return load_dataset('tanganke/dtd')
 
@@ -40,12 +37,6 @@ TASK_SEQUENCE = [
         'test_split': 'test'
     },
     {
-        'name' : 'aircraft',
-        'loader': get_aircraft,
-        'train_split': 'train',
-        'test_split': 'test'
-    },
-    {
         'name' : 'dtd',
         'loader': get_dtd,
         'train_split': 'train',
@@ -62,7 +53,7 @@ def get_task_sequence():
         label_key = 'fine_label' if 'fine_label' in train_data.features else 'label'
         label_names = train_data.features[label_key].names
         tasks.append( {
-            'name': tasks['name'],
+            'name': task['name'],
             'train': train_data,
             'test': test_data,
             'label_key': label_key,
