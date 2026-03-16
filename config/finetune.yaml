@@ -1,0 +1,6 @@
+defaults:
+  - base
+method: "finetune"
+
+train:
+  lr: 3e-4

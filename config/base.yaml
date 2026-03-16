@@ -1,0 +1,13 @@
+model:
+  name: "openai/clip-vit-base-patch32"
+  num_layers: 12
+
+data:
+  root: "./data/datasets.py"
+  batch_size: 128
+  image_size: 224
+
+train:
+  name: "adamw" #name should be in "adamw", "sgd", "adam"
+  lr: 3e-4
+  weight_decay : 0.05

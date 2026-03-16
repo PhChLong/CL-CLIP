@@ -14,7 +14,7 @@ class CLIPWrapper(nn.Module):
         if device is not None:
             self.model.to(device)
     
-    def forward(self, text, image):
-        inputs = self.processor(text=text, images = image, return_tensors = 'pt', padding = True)
+    def forward(self, text, images):
+        inputs = self.processor(text=text, images = images, return_tensors = 'pt', padding = True)
         inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
         return self.model(**inputs)
