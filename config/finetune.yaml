@@ -4,4 +4,4 @@ default: "base"
 
 train:
   r: 4
-  weight_decay: 0.0
+  weight_decay: 0.1

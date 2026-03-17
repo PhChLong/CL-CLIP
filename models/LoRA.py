@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-class LoRA(nn.Module):
+class LoRAAdapter(nn.Module):
     def __init__(self, original_layer: nn.Linear, r = 4):
         super().__init__()
         self.org_layer = original_layer
@@ -17,5 +17,7 @@ class LoRA(nn.Module):
         lora_out = x @ self.A @ self.B * self.scale
         return original_out + lora_out
         
-
-
+class LoRAExpert:
+    def __init__(self):
+        super().__init__()
+        self.adapters = dict()

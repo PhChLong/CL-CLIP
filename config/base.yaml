@@ -3,6 +3,7 @@ model:
   num_layers: 12
 
 datasets:
+  num_tasks: 3
   root: "./data/datasets.py"
   batch_size: 128
   image_size: 224
@@ -11,4 +12,5 @@ train:
   name: "adamw" #name should be in "adamw", "sgd", "adam"
   lr: 3e-4
   weight_decay : 0.05
-  max_epoch: 20
+  max_epoch: 50
+  epsilon: 1e-3

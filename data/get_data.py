@@ -6,9 +6,6 @@ from datasets import load_dataset
 def get_cifar100():
     return load_dataset('cifar100')
 
-def get_flowers():
-    return load_dataset('nelorth/oxford-flowers')
-
 def get_cars():
     return load_dataset('tanganke/stanford_cars')
 
@@ -17,20 +14,6 @@ def get_dtd():
 
 TASK_SEQUENCE = [
     {
-        'name' : 'cifar100',
-        'loader': get_cifar100,
-        'train_split': 'train',
-        'test_split': 'test'
-    },
-    {
-
-        'name' : 'flowers',
-        'loader': get_flowers,
-        'train_split': 'train',
-        'test_split': 'test'
-    },
-    {
-
         'name' : 'cars',
         'loader': get_cars,
         'train_split': 'train',
@@ -42,6 +25,12 @@ TASK_SEQUENCE = [
         'train_split': 'train',
         'test_split': 'test'
     },
+    {
+        'name' : 'cifar100',
+        'loader': get_cifar100,
+        'train_split': 'train',
+        'test_split': 'test'
+    }
 ]
 
 def get_task_sequence():
