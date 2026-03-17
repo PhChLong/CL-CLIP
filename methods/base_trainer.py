@@ -3,7 +3,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from models import CLIPWrapper
 from config import Config
-from data import TaskData
+from data import TaskData, get_task_sequence
 
 def collate_fn(batch):
     images, labels = zip(*batch)
@@ -23,12 +23,12 @@ class BaseTrainer:
             raise ValueError(f"Unknown Optimizer: {name}")
         self.optimizer = optimizers[name]
 
-    def train(self, task, max_epoch = 3):
+    def train(self, task):
         optimizer = self.optimizer(self.wrapper.model.parameters(),
                                    lr = float(self.config.train.lr),
                                    weight_decay = float(self.config.train.weight_decay))
         criterion = nn.CrossEntropyLoss()
-        self.prompts = [f"a photo of {name}" for name in task['label_names']]
+        self.prompts = [f"a photo of a {name}" for name in task['label_names']]
         train_data = TaskData(task, "train")
         test_data = TaskData(task, "test")
         train_loader = DataLoader(
@@ -41,7 +41,7 @@ class BaseTrainer:
             collate_fn=collate_fn
         )
         device = self.wrapper.model.device 
-        for epoch in range(max_epoch):
+        for epoch in range(self.config.train.max_epoch):
             self.wrapper.model.train()
             train_loss = valid_loss = 0
             for images, labels in train_loader:
@@ -62,7 +62,17 @@ class BaseTrainer:
                 valid_loss += loss.item()
             valid_loss /= len(test_loader)
             print(f"{epoch=} || {train_loss=} || {valid_loss=}")
-    
+    def eval_all_seen(self, tasks):
+        pass
+    def train_all_tasks(self):
+        tasks = get_task_sequence()
+        seen_tasks = []
+        for task in tasks:
+            self.train(task)
+            seen_tasks.append(task)
+            #! calculate metrics, lưu metríc
+            metrics = self.eval_all_seen(seen_tasks)
+
     def _loss(self, images):
         outputs = self.wrapper(self.prompts, images)
         logits = outputs.logits_per_image

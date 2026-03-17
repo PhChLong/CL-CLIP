@@ -1,6 +1,7 @@
-defaults:
-  - base
 method: "finetune"
 
+default: "base"
+
 train:
-  lr: 3e-4
+  r: 4
+  weight_decay: 0.0

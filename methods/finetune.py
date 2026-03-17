@@ -17,7 +17,7 @@ class FineTune(BaseTrainer):
                 #* Vision
                 attn = self.wrapper.model.vision_model.encoder.layers[i].self_attn
                 original = getattr(attn, layer_type)
-                setattr(attn, layer_type, LoRA(original))
+                setattr(attn, layer_type, LoRA(original, r= self.config.train.r))
 
                 #*Text
                 attn = self.wrapper.model.text_model.encoder.layers[i].self_attn
