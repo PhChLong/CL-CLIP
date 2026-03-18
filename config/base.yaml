@@ -5,9 +5,9 @@ model:
 datasets:
   num_tasks: 3
   root: "./data/datasets.py"
-  batch_size: 128
+  batch_size: 64
   image_size: 224
-
+  num_workers: 2
 train:
   name: "adamw" #name should be in "adamw", "sgd", "adam"
   lr: 3e-4

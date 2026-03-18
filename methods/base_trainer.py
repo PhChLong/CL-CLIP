@@ -62,19 +62,21 @@ class BaseTrainer:
         prompts = [f"a photo of a {name}" for name in task['label_names']]
         #* encode text truowcs
         text_features = self.wrapper.encode_text(prompts).detach()
+
+        #* =============Data and Dataloader==============================
         train_data = TaskData(task, "train", image_processor= self.wrapper.processor.image_processor)
         test_data = TaskData(task, "test", image_processor= self.wrapper.processor.image_processor)
         train_loader = DataLoader(
             train_data,
             batch_size= self.config.datasets.batch_size,
             collate_fn=collate_fn,
-            num_workers=4,
+            num_workers=self.config.datasets.num_workers,
             pin_memory= True)
         test_loader = DataLoader(
             test_data,
             batch_size = self.config.datasets.batch_size,
             collate_fn=collate_fn,
-            num_workers=4,
+            num_workers=self.config.datasets.num_workers,
             pin_memory=True
         )
 
@@ -115,7 +117,7 @@ class BaseTrainer:
                 best_valid_loss = valid_loss
 
             #* early stopping
-            delta = None if prev_valid_loss is None else (valid_loss - prev_valid_loss)
+            delta = None if prev_valid_loss is None else (- valid_loss + prev_valid_loss)
                 
             
             #* =============lưu history============
@@ -146,7 +148,11 @@ class BaseTrainer:
                 prompts = [f"a photo of a {name}" for name in seen_task['label_names']]
                 text_features = self.wrapper.encode_text(prompts).detach()
                 data = TaskData(seen_task, 'test', image_processor= self.wrapper.processor.image_processor)
-                dataloader = DataLoader(data, batch_size = self.config.datasets.batch_size, collate_fn=collate_fn, num_workers=4, pin_memory=True)
+                dataloader = DataLoader(data,
+                                         batch_size = self.config.datasets.batch_size, 
+                                         collate_fn=collate_fn, 
+                                         num_workers=self.config.datasets.batch_size, 
+                                         pin_memory=True)
                 
                 correct = total = 0
 

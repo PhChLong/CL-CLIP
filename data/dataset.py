@@ -5,7 +5,6 @@ class TaskData(Dataset):
         super().__init__()
         self.data = task[split]['img'] if 'img' in task[split].features else task[split]['image']
         self.task = task
-        self.label_names = task['label_names']
         self.label_key = task[split][task['label_key']]
         self.image_processor = image_processor
 
@@ -19,4 +18,4 @@ class TaskData(Dataset):
                 images = image,
                 return_tensors = 'pt'
             )['pixel_values'].squeeze(0)
-        return image, self.label_names[self.label_key[idx]]
+        return image, self.label_key[idx]
