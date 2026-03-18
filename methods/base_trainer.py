@@ -56,10 +56,11 @@ class BaseTrainer:
         optimizer = self.optimizer(self.wrapper.model.parameters(),
                                    lr = float(self.config.train.lr),
                                    weight_decay = float(self.config.train.weight_decay))
+
         criterion = nn.CrossEntropyLoss()
         prompts = [f"a photo of a {name}" for name in task['label_names']]
 
-        #* =============Data and Dataloader==============================
+        #* =======================Data and Dataloader============================
         train_data = TaskData(task, "train", image_processor= self.wrapper.processor.image_processor)
         test_data = TaskData(task, "test", image_processor= self.wrapper.processor.image_processor)
         train_loader = TaskDataLoader(
@@ -80,10 +81,10 @@ class BaseTrainer:
         epsilon = float(self.config.train.epsilon)
 
         prev_valid_loss = None
-        best_valid_loss = float("inf")        
+        best_valid_loss = float("inf")  
 
         for epoch in range(self.config.train.max_epoch):
-            #* ==============TRAIN=============================
+            #* ====================TRAIN=============================
             text_features = self.wrapper.encode_text(prompts).detach()
             self.wrapper.model.train()
             train_loss = valid_loss = 0.0
@@ -97,7 +98,7 @@ class BaseTrainer:
                 train_loss += loss.item()
             train_loss /= len(train_loader)
 
-            #* ===================Eval===========================
+            #* ======================Eval===========================
             self.wrapper.model.eval()
             with torch.inference_mode():
                 for images, labels in tqdm(test_loader, desc=f"Valid Epoch {epoch+1}", leave=False):
@@ -114,8 +115,7 @@ class BaseTrainer:
             #* early stopping
             delta = None if prev_valid_loss is None else (- valid_loss + prev_valid_loss)
                 
-            
-            #* =============lưu history============
+            #* ====================lưu history================
             log = {
                 "task_id": task_id,
                 "epoch": epoch,
@@ -133,6 +133,7 @@ class BaseTrainer:
                 break
 
             prev_valid_loss = valid_loss
+
     def eval_all_seen(self, seen_tasks) -> list:
         result = [0.0] * self.config.datasets.num_tasks
         self.wrapper.model.eval()
@@ -167,6 +168,7 @@ class BaseTrainer:
             "results_matrix": self.results,
             "history": self.history
         }
+    
     def train_all_tasks(self):
         tasks = get_task_sequence()
         seen_tasks = []
@@ -197,7 +199,6 @@ class BaseTrainer:
         print(f"Saved results to {path}")
 
     def save_logs(self):
-
         save_dir = f"results/{self.config.method}"
         os.makedirs(save_dir, exist_ok=True)
 

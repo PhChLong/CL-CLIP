@@ -22,6 +22,7 @@ class FineTune(BaseTrainer):
                 #! bỏ adding LoRA vào text encoder vì prompt không thay đổi trong suốt quá trình train,
                 #! nếu muốn update cả text encoder thì cpu sẽ có quá nhiều việc, làm bottleneck
                 #! vì project này là để thực nghiệm các method CL nên sẽ bỏ qua text_encoder
+                
                 # #*Text
                 # attn = self.wrapper.model.text_model.encoder.layers[i].self_attn
                 # original = getattr(attn, layer_type)
