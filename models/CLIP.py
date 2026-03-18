@@ -2,6 +2,7 @@ from transformers import CLIPProcessor, CLIPModel
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from models.LoRA import LoRAAdapter
 class CLIPWrapper(nn.Module):
     def __init__(
             self,
@@ -37,3 +38,61 @@ class CLIPWrapper(nn.Module):
         logit_scale = self.model.logit_scale.exp()
         logits = logit_scale * image_features @ text_features.T
         return logits
+    
+    def split_LoRA(self):
+        lora_modules = {}
+        device = self.model.device
+
+        for i in range(12):
+            attn = self.model.vision_model.encoder.layers[i].self_attn
+
+            for layer_type in ["q_proj", "v_proj"]:
+                module = getattr(attn, layer_type)
+
+                if isinstance(module, LoRAAdapter):
+                    # lưu adapter
+                    lora_modules[f"vision.layers.{i}.{layer_type}"] = module
+
+                    # tìm linear gốc để gắn lại vào model
+                    original = None
+
+                    #? attr_name này là tên của original_layer trong class LoRAAdapter
+                    attr_name = "org_name"
+                    if hasattr(module, attr_name):
+                        original = getattr(module, attr_name)
+                        break
+
+                    if original is None:
+                        raise AttributeError(
+                            f"Không tìm thấy layer gốc bên trong LoRAAdapter ở layer {i} - {layer_type}"
+                        )
+
+                    setattr(attn, layer_type, original)
+
+        self.model.to(device)
+        return lora_modules
+    def load_lora(self, lora_modules):
+        device = self.model.device
+
+        if not isinstance(lora_modules, dict):
+            raise TypeError("lora_modules phải là một dict.")
+
+        #? 12 ở đây là số block transformer trong model CLIP
+        for i in range(12):
+            attn = self.wrapper.model.vision_model.encoder.layers[i].self_attn
+
+            for layer_type in ["q_proj", "v_proj"]:
+                key = f"vision.layers.{i}.{layer_type}"
+
+                if key not in lora_modules:
+                    continue
+
+                module = lora_modules[key]
+
+                if not isinstance(module, LoRAAdapter):
+                    raise TypeError(f"{key} không phải là LoRAAdapter.")
+
+                setattr(attn, layer_type, module)
+
+        self.model.to(device)
+        return self.model
