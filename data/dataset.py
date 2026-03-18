@@ -1,4 +1,5 @@
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, DataLoader
+import torch
 
 class TaskData(Dataset):
     def __init__(self, task, split = "train", image_processor = None):
@@ -18,4 +19,19 @@ class TaskData(Dataset):
                 images = image,
                 return_tensors = 'pt'
             )['pixel_values'].squeeze(0)
-        return image, self.label_key[idx]
+        return image, self.label_key[idx]   #* image ở đây đã là tensor rồi
+                                            #* label thì vẫn còn là các số label
+
+#* collate_fn sẽ đưa về 1 tensor (đã stack) của image, và đưa label thành tensors
+def collate_fn(batch):
+    images, labels = zip(*batch)
+    return torch.stack(images), torch.tensor(labels)
+class TaskDataLoader(DataLoader):
+    def __init__(self, data, batch_size, num_workers, pin_memory = True):
+        super().__init__(
+            dataset = data,
+            batch_size = batch_size,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            collate_fn=collate_fn
+        )

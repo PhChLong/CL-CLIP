@@ -4,4 +4,4 @@ from .get_data import (
     get_dtd,
     get_task_sequence
 )
-from .dataset import TaskData
+from .dataset import TaskData, TaskDataLoader

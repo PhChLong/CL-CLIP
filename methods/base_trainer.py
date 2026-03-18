@@ -3,15 +3,13 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from models import CLIPWrapper
 from config import Config
-from data import TaskData, get_task_sequence
+from data import TaskData, TaskDataLoader, get_task_sequence
 from tqdm import tqdm
 import os
 import json
 from datetime import datetime
 
-def collate_fn(batch):
-    images, labels = zip(*batch)
-    return torch.stack(images), torch.tensor(labels)
+
 class BaseTrainer:
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__()
@@ -60,22 +58,18 @@ class BaseTrainer:
                                    weight_decay = float(self.config.train.weight_decay))
         criterion = nn.CrossEntropyLoss()
         prompts = [f"a photo of a {name}" for name in task['label_names']]
-        #* encode text truowcs
-        text_features = self.wrapper.encode_text(prompts).detach()
 
         #* =============Data and Dataloader==============================
         train_data = TaskData(task, "train", image_processor= self.wrapper.processor.image_processor)
         test_data = TaskData(task, "test", image_processor= self.wrapper.processor.image_processor)
-        train_loader = DataLoader(
+        train_loader = TaskDataLoader(
             train_data,
             batch_size= self.config.datasets.batch_size,
-            collate_fn=collate_fn,
             num_workers=self.config.datasets.num_workers,
             pin_memory= True)
-        test_loader = DataLoader(
+        test_loader = TaskDataLoader(
             test_data,
             batch_size = self.config.datasets.batch_size,
-            collate_fn=collate_fn,
             num_workers=self.config.datasets.num_workers,
             pin_memory=True
         )
@@ -90,6 +84,7 @@ class BaseTrainer:
 
         for epoch in range(self.config.train.max_epoch):
             #* ==============TRAIN=============================
+            text_features = self.wrapper.encode_text(prompts).detach()
             self.wrapper.model.train()
             train_loss = valid_loss = 0.0
             for images, labels in tqdm(train_loader, desc=f"Train Epoch {epoch+1}", leave=False):
@@ -144,14 +139,13 @@ class BaseTrainer:
         device = self.wrapper.model.device
         with torch.inference_mode():
             for task_id, seen_task in enumerate(seen_tasks):
-                print(task_id)
+                # print(task_id)
                 prompts = [f"a photo of a {name}" for name in seen_task['label_names']]
                 text_features = self.wrapper.encode_text(prompts).detach()
                 data = TaskData(seen_task, 'test', image_processor= self.wrapper.processor.image_processor)
-                dataloader = DataLoader(data,
+                dataloader = TaskDataLoader(data,
                                          batch_size = self.config.datasets.batch_size, 
-                                         collate_fn=collate_fn, 
-                                         num_workers=self.config.datasets.batch_size, 
+                                         num_workers=self.config.datasets.num_workers, 
                                          pin_memory=True)
                 
                 correct = total = 0
