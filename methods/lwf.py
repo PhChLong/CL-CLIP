@@ -1,4 +1,3 @@
-
 from models import LoRAAdapter, CLIPWrapper
 from methods.base_trainer import BaseTrainer
 import torch
@@ -7,84 +6,81 @@ import torch.nn.functional as F
 from config import Config
 from copy import deepcopy
 from data import TaskData, TaskDataLoader
-
-class TextModelWithProjection(nn.Module):
-    def __init__(self, text_model, text_projection):
-        super().__init__()
-        self.text_model = text_model
-        self.text_projection = text_projection
-
-    def forward(self, input_ids, attention_mask=None):
-        text_outputs = self.text_model(
-            input_ids=input_ids,
-            attention_mask=attention_mask
-        )
-        text_features = text_outputs.pooler_output      # [B, 512]
-        text_embeds = self.text_projection(text_features)  # [B, 512]
-        return text_embeds
+from tqdm import tqdm
 class LwF_LoRA(BaseTrainer):
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__(wrapper, config)
         self.add_lora()
         self.wrapper = wrapper
+
+        #? tách riêng các thành phần của model
         self.vision_model = wrapper.model.vision_model
-        self.org_proj = wrapper.model.visual_projection
-        self.text_model_include_proj = TextModelWithProjection(wrapper.model.text_model, wrapper.model.text_projection)
-        # lưu head theo task
+        self.org_visual_proj = wrapper.model.visual_projection
+        self.text_model = wrapper.model.text_model
+        self.org_text_proj = wrapper.model.text_projection
+
+        #? lưu head theo task
         self.task_heads = nn.ModuleDict()
-        # setpoint cho old tasks:
+        
+        #? setpoint cho old tasks:
         # {old_task_id: tensor [N, D]}
         self.old_task_setpoints = {}
-        # nhiệt độ distillation
+        
+        #? nhiệt độ distillation
         self.distill_temp = self.config.train.distill_temp
-        # trọng số loss cũ
+        
+        #? trọng số loss cũ
         self.lambda_old = getattr(self.config.train, "lambda_old", 1.0)
-        #id của các task đã train
+        
+        #? id của các task đã train
         self.trained_task_id = []
+    
     def add_lora(self):
         device = self.wrapper.model.device
-        # ? Freeze model lại
-        for params in self.wrapper.parameters():
-            params.requires_grad = False
 
-        #? thêm LoRA vào các layer q_proj, v_proj trong model
+        # ? Freeze model lại
+        for param in self.wrapper.model.parameters():
+            param.requires_grad = False
+
+        #? thêm LoRA vào các layer q_proj, v_proj
         for i in range(self.config.model.num_layers):
             for layer_type in ['q_proj', 'v_proj']:
-                org_attention_layer = self.wrapper.model.vision_model.encoder.layers[i].self_attn
-                org_layer = getattr(org_attention_layer, layer_type)
-                setattr(org_attention_layer, layer_type, LoRAAdapter(org_layer, r = self.config.train.r))
-                
-        #? add model to GPU
+                #* Vision
+                attn = self.wrapper.model.vision_model.encoder.layers[i].self_attn
+                original = getattr(attn, layer_type)
+                setattr(attn, layer_type, LoRAAdapter(original, r= self.config.train.r))
+
+                # #*Text
+                attn = self.wrapper.model.text_model.encoder.layers[i].self_attn
+                original = getattr(attn, layer_type)
+                setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
         self.wrapper.model.to(device)
-    
+        
     def _build_new_head_if_needed(self, task_id):
+        device = self.wrapper.model.devcie
         #? neếu chưa từng train trên task này thì sẽ tạo head mới
         if task_id not in self.trained_tasks_ids:
-            new_head = deepcopy(self.wrapper.model.visual_projection)
-            new_head.load_state_dict(self.wrapper.model.visual_projection.state_dict())
-            new_head = new_head.to(self.wrapper.model.device)
+            #? với từng loại head (text, visual)
+            new_visual_head = deepcopy(self.org_visual_proj)
+            new_visual_head.load_state_dict(self.org_visual_proj.state_dict())
+            new_visual_head = new_visual_head.to(device)
+
+            new_text_head = deepcopy(self.org_text_proj)
+            new_text_head.load_state_dict(self.org_text_proj.state_dict())
+            new_text_head = new_text_head.to(device)
 
             #? chỉ train head mới này
             #! cần check lại vì mình nhớ là train hết mọi head
-            for p in new_head.parameters():
+            for p in new_visual_head.parameters():
+                p.requires_grad = True
+            for p in new_text_head.parameters():
                 p.requires_grad = True
 
-            self.task_heads[str(task_id)] = new_head
+            self.task_heads[(str(task_id), 'visual')] = new_visual_head
+            self.task_heads[(str(task_id), "text")] = new_text_head
     
-    @torch.no_grad()
-    def _init_old_tasks_setpoint(self, dataloader, device):
-        if len(self.task_heads) == 0:
-            self.old_task_setpoints = {}
-            return
-
-        self.old_task_setpoints = {str(tid):[] for tid in self.trained_task_id}
-
-        self.vision_model.eval()
-        for image, text in dataloader:
-            image_backbone_encoded = self.vision_model(image).pooler_output
-            for 
-
-
+    def _init_old_tasks_setpoint(self, images, labels):
+        pass
 
     def train(self, task, task_id = None):
         optimizer = self.optimizer(self.wrapper.model.parameters(),
@@ -110,7 +106,18 @@ class LwF_LoRA(BaseTrainer):
         )
 
         device = self.wrapper.model.device
-        #* =====================Compute outputs for prev_heads==================
-        self._init_old_tasks_setpoint(train_loader, device)
-        
-    
+        #* =====================TRAIN=======================================
+        self.wrapper.model.train()
+        train_loss = 0
+        for epoch in range(self.config.train.max_epoch):
+            for images, labels in tqdm(train_loader,  desc=f"Train Epoch {epoch+1}", leave=False):
+                labels = labels.to(device)
+                optimizer.zero_grad()
+                text_features = self.wrapper.encode_text(prompts)
+                logits = self._loss(images, text_features)
+                loss_term_1 = criterion(logits, labels)
+                
+#TODO: 
+""" 
+tính loss term 2, 3
+"""
