@@ -113,4 +113,5 @@ class LwF_LoRA(BaseTrainer):
         #* =====================Compute outputs for prev_heads==================
         self._init_old_tasks_setpoint(train_loader, device)
         
-    
+    def check():
+        pass
