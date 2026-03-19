@@ -106,18 +106,8 @@ class LwF_LoRA(BaseTrainer):
         )
 
         device = self.wrapper.model.device
-        #* =====================TRAIN=======================================
-        self.wrapper.model.train()
-        train_loss = 0
-        for epoch in range(self.config.train.max_epoch):
-            for images, labels in tqdm(train_loader,  desc=f"Train Epoch {epoch+1}", leave=False):
-                labels = labels.to(device)
-                optimizer.zero_grad()
-                text_features = self.wrapper.encode_text(prompts)
-                logits = self._loss(images, text_features)
-                loss_term_1 = criterion(logits, labels)
-                
-#TODO: 
-""" 
-tính loss term 2, 3
-"""
+        #* =====================Compute outputs for prev_heads==================
+        self._init_old_tasks_setpoint(train_loader, device)
+        
+    def check():
+        pass
