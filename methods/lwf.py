@@ -23,7 +23,7 @@ class LwF_LoRA(BaseTrainer):
         self.task_heads = nn.ModuleDict()
         
         #? setpoint cho old tasks:
-        # {old_task_id: tensor [N, D]}
+        #@ {old_task_id: tensor [N, D]}
         self.old_task_setpoints = {}
         
         #? nhiệt độ distillation
