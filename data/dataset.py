@@ -15,11 +15,11 @@ class TaskData(Dataset):
     def __getitem__(self, idx):
         image = self.data[idx]
         if self.image_processor is not None:
-            image = self.image_processor(
+            image_tensor = self.image_processor(
                 images = image,
                 return_tensors = 'pt'
             )['pixel_values'].squeeze(0)
-        return image, self.label_key[idx]   #* image ở đây đã là tensor rồi
+        return image_tensor, self.label_key[idx]   #* image_tensor ở đây đã là tensor rồi
                                             #* label thì vẫn còn là các số label
 
 #* collate_fn sẽ đưa về 1 tensor (đã stack) của image, và đưa label thành tensors

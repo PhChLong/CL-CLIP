@@ -10,8 +10,8 @@ from tqdm import tqdm
 class LwF_LoRA(BaseTrainer):
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__(wrapper, config)
-        self.add_lora()
         self.wrapper = wrapper
+        self.add_lora()
 
         #? tách riêng các thành phần của model
         self.vision_model = wrapper.model.vision_model
@@ -28,7 +28,7 @@ class LwF_LoRA(BaseTrainer):
         
         #? nhiệt độ distillation
         self.distill_temp = self.config.train.distill_temp
-        
+
         #? trọng số loss cũ
         self.lambda_old = getattr(self.config.train, "lambda_old", 1.0)
         
@@ -79,7 +79,7 @@ class LwF_LoRA(BaseTrainer):
             self.task_heads[(str(task_id), 'visual')] = new_visual_head
             self.task_heads[(str(task_id), "text")] = new_text_head
     
-    def _init_old_tasks_setpoint(self, images, labels):
+    def _init_old_tasks_setpoints(self, images, labels):
         pass
 
     def train(self, task, task_id = None):
@@ -104,20 +104,51 @@ class LwF_LoRA(BaseTrainer):
             num_workers=self.config.datasets.num_workers,
             pin_memory=True
         )
-
         device = self.wrapper.model.device
+
         #* =====================TRAIN=======================================
         self.wrapper.model.train()
         train_loss = 0
+        #@ cần phải deepcopy lại LoRA trước khi train, để có thể init được setpoint
+        old_LoRA = self.wrapper.split_and_get_lora()
+        old_LoRA_copy = deepcopy(old_LoRA)
+        self.wrapper.load_lora(old_LoRA)
+        #@ create new head
+        if task_id not in self.trained_task_id:
+            self._build_new_head_if_needed(task_id)
+            new_visual_head = self.task_heads[( str(task_id), 'visual' )]
+            new_text_head = self.task_heads[(str(task_id), 'text')]
         for epoch in range(self.config.train.max_epoch):
-            for images, labels in tqdm(train_loader,  desc=f"Train Epoch {epoch+1}", leave=False):
+            for image_tensors, labels in tqdm(train_loader,  desc=f"Train Epoch {epoch+1}", leave=False):
                 labels = labels.to(device)
                 optimizer.zero_grad()
-                text_features = self.wrapper.encode_text(prompts)
-                logits = self._loss(images, text_features)
-                loss_term_1 = criterion(logits, labels)
+                #@ calculate loss_term_1
+                #? split LoRA
+                current_LoRA = self.wrapper.split_and_get_lora()
+                #? load old LoRA
+                self.wrapper.load_lora(old_LoRA_copy)
                 
-#TODO: 
-""" 
-tính loss term 2, 3
-"""
+                #? save the setpoints of the previous heads
+                prev_heads_setpoints = {}
+                with torch.inference_mode():
+                    #? cho 2 backbone chạy qua data đã
+                    text_model_out = self.wrapper.forward_text_text_model(prompts)
+                    visual_model_out = self.wrapper.forward_image_vision_model(image_tensors)
+                    for trained_task_id in range(task_id):
+                        visual_out = self.task_heads[(str(trained_task_id), 'visual')](visual_model_out)
+                        text_out = self.task_heads[(str(trained_task_id), 'text')](text_model_out)
+
+                        prev_heads_setpoints[(str(trained_task_id), 'visual')] = visual_out
+                        prev_heads_setpoints[(str(trained_task_id), 'text')] = text_out
+
+                self.wrapper.load_lora(current_LoRA)
+
+                loss_term_1 = torch.tensor(0)
+                for 
+
+                #@ calculate loss_term_2
+                text_features = self.wrapper.encode_text(prompts)
+                logits = self._pred(image_tensors, text_features)
+                loss_term_2 = criterion(logits, labels)
+                
+                

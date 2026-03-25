@@ -11,12 +11,35 @@ class CLIPWrapper(nn.Module):
         super().__init__()
         
         self.model = CLIPModel.from_pretrained(checkpoint)
+        self.vision_model = self.model.vision_model
+        self.org_visual_proj = self.model.visual_projection
+        self.text_model = self.model.text_model
+        self.org_text_proj = self.model.text_projection
         self.processor = CLIPProcessor.from_pretrained(checkpoint)
         if device is not None:
             self.model.to(device)
     
         self.num_layers = len(self.model.text_model.encoder.layers)
-    
+    #@ ======================sub model forward====================
+    def forward_image_vision_model(self, image_tensors):
+        pixel_values = image_tensors.to(self.model.device, non_blocking = True)
+        outs = self.vision_model(pixel_values).pooler_output
+        return outs
+
+
+    def forward_text_text_model(self, prompts):
+        inputs = self.processor(
+            text=prompts,
+            images=None,
+            return_tensors='pt',
+            padding=True
+        )
+        inputs = {k: v.to(self.model.device) for k, v in inputs.items() if k in ['input_ids', 'attention_mask']}
+        outs = self.text_model(**inputs, return_dict = True).pooler_output
+        return outs
+
+
+    #@=========================full model forward====================    
     def encode_text(self, text):
         inputs = self.processor(
             text=text,
@@ -29,14 +52,14 @@ class CLIPWrapper(nn.Module):
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         return text_features
 
-    def encode_image(self, images):
-        pixel_values = images.to(self.model.device, non_blocking = True)
+    def encode_image(self, image_tensors):
+        pixel_values = image_tensors.to(self.model.device, non_blocking = True)
         image_features = self.model.get_image_features(pixel_values=pixel_values).pooler_output
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         return image_features
 
-    def forward_with_text_features(self, text_features, images):
-        image_features = self.encode_image(images)
+    def forward_with_text_features(self, text_features, image_tensors):
+        image_features = self.encode_image(image_tensors)
         logit_scale = self.model.logit_scale.exp()
         logits = logit_scale * image_features @ text_features.T
         return logits

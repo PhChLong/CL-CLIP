@@ -13,4 +13,5 @@ train:
   lr: 3e-4
   weight_decay : 0.05
   max_epoch: 50
-  epsilon: 1e-3
+  epsilon: 1e-
+  r: 4

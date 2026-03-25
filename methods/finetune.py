@@ -65,7 +65,7 @@ class FineTune(BaseTrainer):
             for images, labels in tqdm(train_loader, desc=f"Train Epoch {epoch+1}", leave=False):
                 labels = labels.to(device)
                 optimizer.zero_grad()
-                logits = self._loss(images, text_features)
+                logits = self._pred(images, text_features)
                 loss = criterion(logits, labels)
                 loss.backward()
                 optimizer.step()
@@ -77,7 +77,7 @@ class FineTune(BaseTrainer):
             with torch.inference_mode():
                 for images, labels in tqdm(test_loader, desc=f"Valid Epoch {epoch+1}", leave=False):
                     labels = labels.to(device)
-                    logits = self._loss(images, text_features)
+                    logits = self._pred(images, text_features)
                     loss = criterion(logits, labels)
                     valid_loss += loss.item()
             valid_loss /= len(test_loader)

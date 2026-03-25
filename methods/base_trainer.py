@@ -72,7 +72,7 @@ class BaseTrainer:
 
                 for images, labels in dataloader:
                     labels = labels.to(device)
-                    logits = self._loss(images, text_features)
+                    logits = self._pred(images, text_features)
                     preds = logits.argmax(dim = -1)
                     correct += (preds == labels).sum().item()
                     total += labels.size(0)
@@ -102,8 +102,8 @@ class BaseTrainer:
 
         return metrics
 
-    def _loss(self, images, text_features):
-        logits = self.wrapper.forward_with_text_features(text_features, images)
+    def _pred(self, image_tensors, text_features):
+        logits = self.wrapper.forward_with_text_features(text_features, image_tensors)
         return logits
     
     def save_results(self):
