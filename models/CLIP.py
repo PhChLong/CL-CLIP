@@ -40,15 +40,11 @@ class CLIPWrapper(nn.Module):
 
 
     #@=========================full model forward====================    
-    def encode_text(self, text):
-        inputs = self.processor(
-            text=text,
-            images=None,
-            return_tensors='pt',
-            padding=True
-        )
-        inputs = {k: v.to(self.model.device) for k, v in inputs.items() if k in ['input_ids', 'attention_mask']}
-        text_features = self.model.get_text_features(**inputs).pooler_output
+    def encode_text(self, text_tokenized):
+        #? text_tokenized  = labels -> prompts -> processor()
+        #? text_tokenized = {'input_ids': tensor, 'attention_mask': tensor}
+        text_tokenized = {k: v.to(self.model.device) for k, v in text_tokenized.items() if k in ['input_ids', 'attention_mask']}
+        text_features = self.model.get_text_features(**text_tokenized).pooler_output
         text_features = text_features / text_features.norm(dim=-1, keepdim=True)
         return text_features
 

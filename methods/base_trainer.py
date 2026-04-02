@@ -103,7 +103,7 @@ class BaseTrainer:
         return metrics
 
     def _pred(self, image_tensors, text_features):
-        logits = self.wrapper.forward_with_text_features(text_features, image_tensors)
+        logits = self.wrapper.forward(text_features, image_tensors)
         return logits
     
     def save_results(self):

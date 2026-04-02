@@ -26,6 +26,7 @@ class FineTune(BaseTrainer):
                 original = getattr(attn, layer_type)
                 setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
         self.wrapper.model.to(device)
+
     def train(self, task, task_id = None):
         optimizer = self.optimizer(self.wrapper.model.parameters(),
                                    lr = float(self.config.train.lr),
