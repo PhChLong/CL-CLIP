@@ -5,7 +5,7 @@ model:
 datasets:
   num_tasks: 3
   root: "./data/datasets.py"
-  batch_size: 1
+  batch_size: 128
   image_size: 224
   num_workers: 0
   pin_memory: True
@@ -15,5 +15,5 @@ train:
   lr: 3e-4
   weight_decay : 0.05
   max_epoch: 50
-  epsilon: 1e-
+  epsilon: 1e-4
   r: 4

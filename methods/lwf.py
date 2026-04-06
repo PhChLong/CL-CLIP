@@ -19,8 +19,8 @@ class LwF_LoRA(BaseTrainer):
         self.text_model = wrapper.model.text_model
         self.org_text_proj = wrapper.model.text_projection
 
-        #? lưu head theo task
-        self.task_heads = nn.ModuleDict()
+        # #? lưu head theo task
+        # self.task_heads = nn.ModuleDict()
         
         #? setpoint cho old tasks:
         #@ {old_task_id: tensor [N, D]}
@@ -55,100 +55,90 @@ class LwF_LoRA(BaseTrainer):
                 original = getattr(attn, layer_type)
                 setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
         self.wrapper.model.to(device)
-        
-    def _build_new_head_if_needed(self, task_id):
-        device = self.wrapper.model.devcie
-        #? neếu chưa từng train trên task này thì sẽ tạo head mới
-        if task_id not in self.trained_tasks_ids:
-            #? với từng loại head (text, visual)
-            new_visual_head = deepcopy(self.org_visual_proj)
-            new_visual_head.load_state_dict(self.org_visual_proj.state_dict())
-            new_visual_head = new_visual_head.to(device)
 
-            new_text_head = deepcopy(self.org_text_proj)
-            new_text_head.load_state_dict(self.org_text_proj.state_dict())
-            new_text_head = new_text_head.to(device)
 
-            #? chỉ train head mới này
-            #! cần check lại vì mình nhớ là train hết mọi head
-            for p in new_visual_head.parameters():
-                p.requires_grad = True
-            for p in new_text_head.parameters():
-                p.requires_grad = True
-
-            self.task_heads[(str(task_id), 'visual')] = new_visual_head
-            self.task_heads[(str(task_id), "text")] = new_text_head
-    
-    def _init_old_tasks_setpoints(self, images, labels):
-        pass
-
-    def train(self, task, task_id = None):
+    #@ Train LwF cho 1 task: KD loss từ old LoRA + CE loss trên current task
+    #@ text_features encode trong batch loop vì dùng train_data.text_tokenized (tokenized sẵn)
+    def train(self, task, task_id=None):
         optimizer = self.optimizer(self.wrapper.model.parameters(),
-                                   lr = float(self.config.train.lr),
-                                   weight_decay = float(self.config.train.weight_decay))
-
+                                lr=float(self.config.train.lr),
+                                weight_decay=float(self.config.train.weight_decay))
         criterion = nn.CrossEntropyLoss()
-        prompts = [f"a photo of a {name}" for name in task['label_names']]
+        T = float(self.config.train.distill_temp)
 
-        #* =======================Data and Dataloader============================
-        train_data = TaskData(task, "train", image_processor= self.wrapper.processor.image_processor)
-        test_data = TaskData(task, "test", image_processor= self.wrapper.processor.image_processor)
-        train_loader = TaskDataLoader(
-            train_data,
-            batch_size= self.config.datasets.batch_size,
-            num_workers=self.config.datasets.num_workers,
-            pin_memory= True)
-        test_loader = TaskDataLoader(
-            test_data,
-            batch_size = self.config.datasets.batch_size,
-            num_workers=self.config.datasets.num_workers,
-            pin_memory=True
-        )
+        #* ====================== Data và Dataloader ============================
+        train_data = TaskData(task, "train", processor=self.wrapper.processor)
+        test_data = TaskData(task, "test", processor=self.wrapper.processor)
+        train_loader = TaskDataLoader(train_data, batch_size=self.config.datasets.batch_size,
+                                    num_workers=self.config.datasets.num_workers, pin_memory=True)
+        test_loader = TaskDataLoader(test_data, batch_size=self.config.datasets.batch_size,
+                                    num_workers=self.config.datasets.num_workers, pin_memory=True)
         device = self.wrapper.model.device
 
-        #* =====================TRAIN=======================================
-        self.wrapper.model.train()
-        train_loss = 0
-        #@ cần phải deepcopy lại LoRA trước khi train, để có thể init được setpoint
+        #* snapshot teacher LoRA trước khi train — sẽ không bao giờ bị update
         old_LoRA = self.wrapper.split_and_get_lora()
         old_LoRA_copy = deepcopy(old_LoRA)
-        self.wrapper.load_lora(old_LoRA)
-        #@ create new head
-        if task_id not in self.trained_task_id:
-            self._build_new_head_if_needed(task_id)
-            new_visual_head = self.task_heads[( str(task_id), 'visual' )]
-            new_text_head = self.task_heads[(str(task_id), 'text')]
+        self.wrapper.load_lora(old_LoRA)  #? restore lại current LoRA sau khi split
+
+        epsilon = float(self.config.train.epsilon)
+        prev_valid_loss = None
+        best_valid_loss = float("inf")
+
         for epoch in range(self.config.train.max_epoch):
-            for image_tensors, labels in tqdm(train_loader,  desc=f"Train Epoch {epoch+1}", leave=False):
-                labels = labels.to(device)
+            #* ====================== TRAIN =====================================
+            self.wrapper.model.train()
+            train_loss = valid_loss = 0.0
+
+            for images, labels in tqdm(train_loader, desc=f"Train Epoch {epoch+1}", leave=False):
+                images, labels = images.to(device), labels.to(device)
+                #? encode text trong loop — text_tokenized đã tokenize sẵn, cost thấp
+                text_features = self.wrapper.encode_text(train_data.text_tokenized)
                 optimizer.zero_grad()
-                #@ calculate loss_term_1
-                #? split LoRA
+
+                #* tính old_logits từ teacher (old LoRA)
                 current_LoRA = self.wrapper.split_and_get_lora()
-                #? load old LoRA
-                self.wrapper.load_lora(old_LoRA_copy)
-                
-                #? save the setpoints of the previous heads
-                prev_heads_setpoints = {}
+                self.wrapper.load_lora(old_LoRA_copy)  #? swap sang teacher
                 with torch.inference_mode():
-                    #? cho 2 backbone chạy qua data đã
-                    text_model_out = self.wrapper.forward_text_text_model(prompts)
-                    visual_model_out = self.wrapper.forward_image_vision_model(image_tensors)
-                    for trained_task_id in range(task_id):
-                        visual_out = self.task_heads[(str(trained_task_id), 'visual')](visual_model_out)
-                        text_out = self.task_heads[(str(trained_task_id), 'text')](text_model_out)
+                    old_logits = self.wrapper.forward_with_text_features(text_features, images)
+                soft_targets = F.softmax(old_logits / T, dim=1)  #? không cần .detach() — inference_mode đã ngăn grad
+                self.wrapper.split_and_get_lora()
+                self.wrapper.load_lora(current_LoRA)  #? swap lại student
 
-                        prev_heads_setpoints[(str(trained_task_id), 'visual')] = visual_out
-                        prev_heads_setpoints[(str(trained_task_id), 'text')] = text_out
+                #* tính current logits và loss
+                logits = self.wrapper.forward_with_text_features(text_features, images)
+                soft_predictions = F.log_softmax(logits / T, dim=1)
+                loss_kd = F.kl_div(soft_predictions, soft_targets, reduction='batchmean') * (T ** 2)
+                loss_ce = criterion(logits, labels)
+                loss = loss_kd + loss_ce
 
-                self.wrapper.load_lora(current_LoRA)
+                loss.backward()
+                optimizer.step()
+                train_loss += loss.item()
 
-                loss_term_1 = torch.tensor(0)
-                for 
+            train_loss /= len(train_loader)
 
-                #@ calculate loss_term_2
-                text_features = self.wrapper.encode_text(prompts)
-                logits = self._pred(image_tensors, text_features)
-                loss_term_2 = criterion(logits, labels)
-                
-                
+            #* ====================== EVAL ======================================
+            self.wrapper.model.eval()
+            with torch.inference_mode():
+                text_features = self.wrapper.encode_text(train_data.text_tokenized)  #? encode 1 lần cho eval
+                for images, labels in tqdm(test_loader, desc=f"Valid Epoch {epoch+1}", leave=False):
+                    images, labels = images.to(device), labels.to(device)
+                    logits = self.wrapper.forward_with_text_features(text_features, images)
+                    loss = criterion(logits, labels)
+                    valid_loss += loss.item()
+            valid_loss /= len(test_loader)
+
+            if valid_loss < best_valid_loss:
+                best_valid_loss = valid_loss
+
+            delta = None if prev_valid_loss is None else (prev_valid_loss - valid_loss)
+            log = {"task_id": task_id, "epoch": epoch, "train_loss": train_loss, "valid_loss": valid_loss}
+            self.history.append(log)
+            message = f"task={task_id+1} epoch={epoch+1} || train_loss={train_loss:.4f} || valid_loss={valid_loss:.4f}"
+            self.logs.append(message)
+            print(message)
+
+            if delta is not None and delta < epsilon:
+                print("EARLY STOPPING")
+                break
+            prev_valid_loss = valid_loss

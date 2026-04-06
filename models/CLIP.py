@@ -72,6 +72,11 @@ class CLIPWrapper(nn.Module):
         logit_scale = self.model.logit_scale.exp()
         logits = logit_scale * image_features @ text_features.T
         return logits
+        
+    def forward(self, text, images):
+        inputs = self.processor(text=text, images = images, return_tensors = 'pt', padding = True)
+        inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+        return self.model(**inputs)
     
     def split_and_get_lora(self):
         lora_modules = {}

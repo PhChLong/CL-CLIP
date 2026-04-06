@@ -54,30 +54,31 @@ class BaseTrainer:
     
     def train(self, task, task_id = None):
         raise NotImplementedError
+   #@ Eval accuracy trên tất cả seen tasks, trả về list[float] indexed by task_id
     def eval_all_seen(self, seen_tasks) -> list:
         result = [0.0] * self.config.datasets.num_tasks
         self.wrapper.model.eval()
         device = self.wrapper.model.device
+
         with torch.inference_mode():
             for task_id, seen_task in enumerate(seen_tasks):
-                prompts = [f"a photo of a {name}" for name in seen_task['label_names']]
-                text_features = self.wrapper.encode_text(prompts).detach()
-                data = TaskData(seen_task, 'test', image_processor= self.wrapper.processor.image_processor)
+                data = TaskData(seen_task, 'test', processor=self.wrapper.processor)
                 dataloader = TaskDataLoader(data,
-                                         batch_size = self.config.datasets.batch_size, 
-                                         num_workers=self.config.datasets.num_workers, 
-                                         pin_memory=True)
-                
-                correct = total = 0
+                                            batch_size=self.config.datasets.batch_size,
+                                            num_workers=self.config.datasets.num_workers,
+                                            pin_memory=True)
+                text_features = self.wrapper.encode_text(data.text_tokenized)  #? encode 1 lần trước loop
 
+                correct = total = 0
                 for images, labels in dataloader:
-                    labels = labels.to(device)
-                    logits = self._pred(images, text_features)
-                    preds = logits.argmax(dim = -1)
+                    images, labels = images.to(device), labels.to(device)  #! images phải move to device
+                    logits = self.wrapper.forward_with_text_features(text_features, images)
+                    preds = logits.argmax(dim=-1)
                     correct += (preds == labels).sum().item()
                     total += labels.size(0)
-                acc = correct / total if total >0 else 0.0
-                result[task_id] = acc
+
+                result[task_id] = correct / total if total > 0 else 0.0
+
         return result
     def compute_metrics(self):
         return {
@@ -102,10 +103,6 @@ class BaseTrainer:
 
         return metrics
 
-    def _pred(self, image_tensors, text_features):
-        logits = self.wrapper.forward(text_features, image_tensors)
-        return logits
-    
     def save_results(self):
         save_dir = f"results/{self.config.method}"
         os.makedirs(save_dir, exist_ok=True)
