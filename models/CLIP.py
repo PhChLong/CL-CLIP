@@ -1,6 +1,9 @@
 from transformers import CLIPProcessor, CLIPModel
 import torch.nn as nn
 from models.LoRA import LoRAAdapter
+from pathlib import Path
+
+MODEL_CACHE_DIR = Path(__file__).parent / "model_cache"
 
 class CLIPWrapper(nn.Module):
     def __init__(
@@ -10,14 +13,24 @@ class CLIPWrapper(nn.Module):
     ):
         super().__init__()
         
-        self.model = CLIPModel.from_pretrained(checkpoint)
-        self.vision_model = self.model.vision_model
-        self.org_visual_proj = self.model.visual_projection
-        self.text_model = self.model.text_model
-        self.org_text_proj = self.model.text_projection
-        self.processor = CLIPProcessor.from_pretrained(checkpoint)
+        #@ load model if the model exists, else download the model
+        if (MODEL_CACHE_DIR / "model.safetensors").exists() or (MODEL_CACHE_DIR / "pytorch_model.bin").exists():
+            print(f"[cache] Loading CLIP from {MODEL_CACHE_DIR}")
+            self.model = CLIPModel.from_pretrained(str(MODEL_CACHE_DIR))
+            self.processor = CLIPProcessor.from_pretrained(str(MODEL_CACHE_DIR))
+        else:
+            print(f"[download] Downloading CLIP from {checkpoint}...")
+            self.model = CLIPModel.from_pretrained(checkpoint)
+            self.processor = CLIPProcessor.from_pretrained(checkpoint)
+            MODEL_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+            self.model.save_pretrained(str(MODEL_CACHE_DIR))
+            self.processor.save_pretrained(str(MODEL_CACHE_DIR))
+            print(f"[saved] CLIP → {MODEL_CACHE_DIR}")
+
         if device is not None:
             self.model.to(device)
+    
+        self.num_layers = len(self.model.text_model.encoder.layers)
     
         self.num_layers = len(self.model.text_model.encoder.layers)
     #@ ======================sub model forward====================
@@ -119,7 +132,7 @@ class CLIPWrapper(nn.Module):
             attn = self.model.get_submodule(attn)
             layer = self.model.get_submodule(layer_name)
             lora = LoRAAdapter(layer, lora_modules[layer_name])
-            current = getattr(attn, layer_name)
+            current = getattr(attn, layer_type)
             if isinstance(current, LoRAAdapter):
                 raise TypeError(
                     f"Layer '{layer_name}' is already a LoRAAdapter. "

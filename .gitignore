@@ -8,3 +8,5 @@ clip_cl_env/
 CL-clip_cl_env
 *.ipynb
 .ipynb_checkpoints/
+data/dataset_cache/*
+models/model_cache/*

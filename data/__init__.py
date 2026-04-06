@@ -1,7 +1,5 @@
 from .get_data import (
-    get_cifar100,
-    get_cars, 
-    get_dtd,
-    get_task_sequence
+    get_task_sequence,
+    load_task
 )
 from .dataset import TaskData, TaskDataLoader
