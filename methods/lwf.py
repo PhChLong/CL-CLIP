@@ -101,7 +101,8 @@ class LwF_LoRA(BaseTrainer):
                 current_LoRA = self.wrapper.split_and_get_lora()
                 self.wrapper.load_lora(old_LoRA_copy)  #? swap sang teacher
                 with torch.inference_mode():
-                    old_logits = self.wrapper.forward_with_text_features(text_features, images)
+                    teacher_text_features = self.wrapper.encode_text(train_data.text_tokenized)
+                    old_logits = self.wrapper.forward_with_text_features(teacher_text_features, images)
                 soft_targets = F.softmax(old_logits / T, dim=1)  #? không cần .detach() — inference_mode đã ngăn grad
                 self.wrapper.split_and_get_lora()
                 self.wrapper.load_lora(current_LoRA)  #? swap lại student

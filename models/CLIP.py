@@ -125,7 +125,7 @@ class CLIPWrapper(nn.Module):
                             f"Không tìm thấy LoRAAdapter"
                         )
                     setattr(attn, layer_type, original_layer)
-            self.model.to(device)
+        self.model.to(device)
         return lora_modules
     #? lora_modules sẽ trông ntn 
     #? 'vision_model.encoder.layers.10.self_attn.v_proj': LoRA(in=768, out=768, r=4, scale=0.2500)

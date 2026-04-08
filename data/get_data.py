@@ -9,14 +9,6 @@ CACHE_DIR = Path(__file__).parent / "dataset_cache"
 
 TASK_SEQUENCE = [
     {
-        'name': 'eurosat',
-        'hf_id': 'tanganke/eurosat',
-        'loader_kwargs': {},
-        'train_split': 'train',
-        'test_split': 'test',
-        'label_key': 'label',
-    },
-    {
         'name': 'flowers102',
         'hf_id': 'pufanyi/flowers102',
         'loader_kwargs': {},
@@ -27,6 +19,14 @@ TASK_SEQUENCE = [
     {
         'name': 'cars',
         'hf_id': 'tanganke/stanford_cars',
+        'loader_kwargs': {},
+        'train_split': 'train',
+        'test_split': 'test',
+        'label_key': 'label',
+    },
+    {
+        'name': 'eurosat',
+        'hf_id': 'tanganke/eurosat',
         'loader_kwargs': {},
         'train_split': 'train',
         'test_split': 'test',

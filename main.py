@@ -6,10 +6,10 @@ if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     clip = CLIPWrapper(device=device)
 
-    clip.split_and_get_lora()
-    finetune_config = Config('finetune')
-    finetune = FineTune(clip, finetune_config)
-    finetune.train_all_tasks()
+    # clip.split_and_get_lora()
+    # finetune_config = Config('finetune')
+    # finetune = FineTune(clip, finetune_config)
+    # finetune.train_all_tasks()
 
     clip.split_and_get_lora()
     lwf_config = Config('lwf')
