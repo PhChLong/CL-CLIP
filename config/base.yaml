@@ -3,11 +3,11 @@ model:
   num_layers: 12
 
 datasets:
-  num_tasks: 3
+  num_tasks: 5
   root: "./data/datasets.py"
   batch_size: 128
   image_size: 224
-  num_workers: 0
+  num_workers: 4
   pin_memory: True
 
 train:
@@ -15,5 +15,6 @@ train:
   lr: 3e-4
   weight_decay : 0.05
   max_epoch: 50
+  patience: 3
   epsilon: 1e-4
   r: 4

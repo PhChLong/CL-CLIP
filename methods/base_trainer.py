@@ -51,18 +51,46 @@ class BaseTrainer:
         for i in range(T - 1):
             bwt += last_row[i] - self.results[i][i]
         return bwt / (T - 1)
+
+    def Transfer(self):
+        T = len(self.results)
+        if T <= 1:
+            return 0.0
+        
+        # Upper-right triangle: results[i][j] với j > i
+        # results[i][j] = accuracy task j sau khi train xong task i
+        # Với j > i: task j chưa được fine-tune → đây là zero-shot transfer
+        
+        col_avgs = []
+        for j in range(1, T):          # mỗi task j (trừ task 0)
+            col_vals = []
+            for i in range(j):         # tất cả timestamps i < j
+                col_vals.append(self.results[i][j])
+            col_avgs.append(sum(col_vals) / len(col_vals))
+        
+        return sum(col_avgs) / len(col_avgs)
+
+    def compute_metrics(self):
+        return {
+            "AVG": self.AVG(),
+            "Last": self.Last(),
+            "BWT": self.BWT(),
+            "Transfer": self.Transfer(),
+            "results_matrix": self.results,
+            "history": self.history
+        }
     
     def train(self, task, task_id = None):
         raise NotImplementedError
    #@ Eval accuracy trên tất cả seen tasks, trả về list[float] indexed by task_id
-    def eval_all_seen(self, seen_tasks) -> list:
+    def eval_all(self) -> list:
         result = [0.0] * self.config.datasets.num_tasks
         self.wrapper.model.eval()
         device = self.wrapper.model.device
 
         with torch.inference_mode():
-            for task_id, seen_task in enumerate(seen_tasks):
-                data = TaskData(seen_task, 'test', processor=self.wrapper.processor)
+            for task_id, task in enumerate(self.tasks):
+                data = TaskData(task, 'test', processor=self.wrapper.processor)
                 dataloader = TaskDataLoader(data,
                                             batch_size=self.config.datasets.batch_size,
                                             num_workers=self.config.datasets.num_workers,
@@ -80,22 +108,12 @@ class BaseTrainer:
                 result[task_id] = correct / total if total > 0 else 0.0
 
         return result
-    def compute_metrics(self):
-        return {
-            "AVG": self.AVG(),
-            "Last": self.Last(),
-            "BWT": self.BWT(),
-            "results_matrix": self.results,
-            "history": self.history
-        }
     
     def train_all_tasks(self):
-        tasks = get_task_sequence()
-        seen_tasks = []
-        for task_id, task in enumerate(tasks):
+        self.tasks = get_task_sequence()
+        for task_id, task in enumerate(self.tasks):
             self.train(task, task_id=task_id)
-            seen_tasks.append(task)
-            self.results.append(self.eval_all_seen(seen_tasks))
+            self.results.append(self.eval_all())
         
         metrics = self.compute_metrics()
         self.save_logs()

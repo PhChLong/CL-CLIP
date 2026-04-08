@@ -10,10 +10,15 @@ class FineTune(BaseTrainer):
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__(wrapper, config)
         self.add_lora()
+
     def add_lora(self):
         device = self.wrapper.model.device
+
+        # ? Freeze model lại
         for param in self.wrapper.model.parameters():
             param.requires_grad = False
+
+        #? thêm LoRA vào các layer q_proj, v_proj
         for i in range(self.config.model.num_layers):
             for layer_type in ['q_proj', 'v_proj']:
                 #* Vision
@@ -33,11 +38,10 @@ class FineTune(BaseTrainer):
                                    weight_decay = float(self.config.train.weight_decay))
 
         criterion = nn.CrossEntropyLoss()
-        prompts = [f"a photo of a {name}" for name in task['label_names']]
 
         #* =======================Data and Dataloader============================
-        train_data = TaskData(task, "train", image_processor= self.wrapper.processor.image_processor)
-        test_data = TaskData(task, "test", image_processor= self.wrapper.processor.image_processor)
+        train_data = TaskData(task, "train", processor= self.wrapper.processor)
+        test_data = TaskData(task, "test", processor= self.wrapper.processor)
         train_loader = TaskDataLoader(
             train_data,
             batch_size= self.config.datasets.batch_size,
@@ -54,19 +58,19 @@ class FineTune(BaseTrainer):
 
         #* stop khi improvement nhor honw epsilon        
         epsilon = float(self.config.train.epsilon)
-
-        prev_valid_loss = None
+        patience = int(self.config.train.patience)  #? số epoch liên tiếp không cải thiện trước khi dừng
+        patience_counter = 0
         best_valid_loss = float("inf")  
 
         for epoch in range(self.config.train.max_epoch):
             #* ====================TRAIN=============================
-            text_features = self.wrapper.encode_text(prompts).detach()
             self.wrapper.model.train()
             train_loss = valid_loss = 0.0
             for images, labels in tqdm(train_loader, desc=f"Train Epoch {epoch+1}", leave=False):
-                labels = labels.to(device)
+                images, labels = images.to(device), labels.to(device)
                 optimizer.zero_grad()
-                logits = self._pred(images, text_features)
+                text_features = self.wrapper.encode_text(train_data.text_tokenized)
+                logits = self.wrapper.forward_with_text_features(text_features, images)
                 loss = criterion(logits, labels)
                 loss.backward()
                 optimizer.step()
@@ -76,20 +80,14 @@ class FineTune(BaseTrainer):
             #* ======================Eval===========================
             self.wrapper.model.eval()
             with torch.inference_mode():
+                text_features = self.wrapper.encode_text(train_data.text_tokenized)  #? encode fresh cho eval
                 for images, labels in tqdm(test_loader, desc=f"Valid Epoch {epoch+1}", leave=False):
-                    labels = labels.to(device)
-                    logits = self._pred(images, text_features)
+                    images, labels = images.to(device), labels.to(device)
+                    logits = self.wrapper.forward_with_text_features(text_features, images)
                     loss = criterion(logits, labels)
                     valid_loss += loss.item()
-            valid_loss /= len(test_loader)
+                valid_loss /= len(test_loader)
 
-            #* kiểm tra nếu model học
-            if valid_loss < best_valid_loss:
-                best_valid_loss = valid_loss
-
-            #* early stopping
-            delta = None if prev_valid_loss is None else (- valid_loss + prev_valid_loss)
-                
             #* ====================lưu history================
             log = {
                 "task_id": task_id,
@@ -103,8 +101,12 @@ class FineTune(BaseTrainer):
             self.logs.append(message)
             print(message)
 
-            if delta is not None and delta < epsilon:
-                print(f"EARLY STOPPING")
-                break
-
-            prev_valid_loss = valid_loss
+        #* ====================== EARLY STOPPING ============================
+            if valid_loss < best_valid_loss - epsilon:
+                best_valid_loss = valid_loss
+                patience_counter = 0  #? cải thiện đủ → reset counter
+            else:
+                patience_counter += 1  #? không cải thiện → tăng counter
+                if patience_counter >= patience:
+                    print(f"EARLY STOPPING (patience={patience})")
+                    break

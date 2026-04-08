@@ -73,6 +73,7 @@ class LwF_LoRA(BaseTrainer):
                                     num_workers=self.config.datasets.num_workers, pin_memory=True)
         test_loader = TaskDataLoader(test_data, batch_size=self.config.datasets.batch_size,
                                     num_workers=self.config.datasets.num_workers, pin_memory=True)
+
         device = self.wrapper.model.device
 
         #* snapshot teacher LoRA trước khi train — sẽ không bao giờ bị update
@@ -81,8 +82,9 @@ class LwF_LoRA(BaseTrainer):
         self.wrapper.load_lora(old_LoRA)  #? restore lại current LoRA sau khi split
 
         epsilon = float(self.config.train.epsilon)
-        prev_valid_loss = None
         best_valid_loss = float("inf")
+        patience = int(self.config.train.patience)  #? số epoch liên tiếp không cải thiện trước khi dừng
+        patience_counter = 0
 
         for epoch in range(self.config.train.max_epoch):
             #* ====================== TRAIN =====================================
@@ -92,8 +94,8 @@ class LwF_LoRA(BaseTrainer):
             for images, labels in tqdm(train_loader, desc=f"Train Epoch {epoch+1}", leave=False):
                 images, labels = images.to(device), labels.to(device)
                 #? encode text trong loop — text_tokenized đã tokenize sẵn, cost thấp
-                text_features = self.wrapper.encode_text(train_data.text_tokenized)
                 optimizer.zero_grad()
+                text_features = self.wrapper.encode_text(train_data.text_tokenized)
 
                 #* tính old_logits từ teacher (old LoRA)
                 current_LoRA = self.wrapper.split_and_get_lora()
@@ -128,17 +130,18 @@ class LwF_LoRA(BaseTrainer):
                     valid_loss += loss.item()
             valid_loss /= len(test_loader)
 
-            if valid_loss < best_valid_loss:
-                best_valid_loss = valid_loss
-
-            delta = None if prev_valid_loss is None else (prev_valid_loss - valid_loss)
             log = {"task_id": task_id, "epoch": epoch, "train_loss": train_loss, "valid_loss": valid_loss}
             self.history.append(log)
             message = f"task={task_id+1} epoch={epoch+1} || train_loss={train_loss:.4f} || valid_loss={valid_loss:.4f}"
             self.logs.append(message)
             print(message)
 
-            if delta is not None and delta < epsilon:
-                print("EARLY STOPPING")
-                break
-            prev_valid_loss = valid_loss
+        #* ====================== EARLY STOPPING ============================
+            if valid_loss < best_valid_loss - epsilon:
+                best_valid_loss = valid_loss
+                patience_counter = 0  #? cải thiện đủ → reset counter
+            else:
+                patience_counter += 1  #? không cải thiện → tăng counter
+                if patience_counter >= patience:
+                    print(f"EARLY STOPPING (patience={patience})")
+                    break
