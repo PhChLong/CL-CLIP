@@ -1,4 +1,4 @@
-from models import LoRAAdapter, CLIPWrapper
+from models import CLIPWrapper
 from methods.base_trainer import BaseTrainer
 import torch
 import torch.nn as nn
@@ -7,6 +7,7 @@ from config import Config
 from copy import deepcopy
 from data import TaskData, TaskDataLoader
 from tqdm import tqdm
+
 class LwF_LoRA(BaseTrainer):
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__(wrapper, config)
@@ -19,9 +20,6 @@ class LwF_LoRA(BaseTrainer):
         self.text_model = wrapper.model.text_model
         self.org_text_proj = wrapper.model.text_projection
 
-        # #? lưu head theo task
-        # self.task_heads = nn.ModuleDict()
-        
         #? setpoint cho old tasks:
         #@ {old_task_id: tensor [N, D]}
         self.old_task_setpoints = {}
@@ -35,28 +33,6 @@ class LwF_LoRA(BaseTrainer):
         #? id của các task đã train
         self.trained_task_id = []
     
-    def add_lora(self):
-        device = self.wrapper.model.device
-
-        # ? Freeze model lại
-        for param in self.wrapper.model.parameters():
-            param.requires_grad = False
-
-        #? thêm LoRA vào các layer q_proj, v_proj
-        for i in range(self.config.model.num_layers):
-            for layer_type in ['q_proj', 'v_proj']:
-                #* Vision
-                attn = self.wrapper.model.vision_model.encoder.layers[i].self_attn
-                original = getattr(attn, layer_type)
-                setattr(attn, layer_type, LoRAAdapter(original, r= self.config.train.r))
-
-                # #*Text
-                attn = self.wrapper.model.text_model.encoder.layers[i].self_attn
-                original = getattr(attn, layer_type)
-                setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
-        self.wrapper.model.to(device)
-
-
     #@ Train LwF cho 1 task: KD loss từ old LoRA + CE loss trên current task
     #@ text_features encode trong batch loop vì dùng train_data.text_tokenized (tokenized sẵn)
     def train(self, task, task_id=None):

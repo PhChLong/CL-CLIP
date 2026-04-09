@@ -8,6 +8,7 @@ from tqdm import tqdm
 import os
 import json
 from datetime import datetime
+from models import LoRAAdapter
 
 class BaseTrainer:
     def __init__(self, wrapper: CLIPWrapper, config: Config):
@@ -30,6 +31,27 @@ class BaseTrainer:
         #* lưu log dưới dạng text
         self.logs = []
         self.run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    def add_lora(self):
+        device = self.wrapper.model.device
+
+        # ? Freeze model lại
+        for param in self.wrapper.model.parameters():
+            param.requires_grad = False
+
+        #? thêm LoRA vào các layer q_proj, v_proj
+        for i in range(self.config.model.num_layers):
+            for layer_type in ['q_proj', 'v_proj']:
+                #* Vision
+                attn = self.wrapper.model.vision_model.encoder.layers[i].self_attn
+                original = getattr(attn, layer_type)
+                setattr(attn, layer_type, LoRAAdapter(original, r= self.config.train.r))
+
+                # #*Text
+                attn = self.wrapper.model.text_model.encoder.layers[i].self_attn
+                original = getattr(attn, layer_type)
+                setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
+        self.wrapper.model.to(device)
 
     def AVG(self):
         avg = 0.0
