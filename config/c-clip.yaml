@@ -1,0 +1,6 @@
+method: "c-clip"
+
+default: "base"
+
+train:
+  alpha: 0.5

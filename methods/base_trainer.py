@@ -1,10 +1,7 @@
 import torch
-import torch.nn as nn
-from torch.utils.data import DataLoader
 from models import CLIPWrapper
 from config import Config
 from data import TaskData, TaskDataLoader, get_task_sequence
-from tqdm import tqdm
 import os
 import json
 from datetime import datetime
@@ -42,12 +39,12 @@ class BaseTrainer:
         #? thêm LoRA vào các layer q_proj, v_proj
         for i in range(self.config.model.num_layers):
             for layer_type in ['q_proj', 'v_proj']:
-                #* Vision
+                #@ Vision
                 attn = self.wrapper.model.vision_model.encoder.layers[i].self_attn
                 original = getattr(attn, layer_type)
                 setattr(attn, layer_type, LoRAAdapter(original, r= self.config.train.r))
 
-                # #*Text
+                #@ Text
                 attn = self.wrapper.model.text_model.encoder.layers[i].self_attn
                 original = getattr(attn, layer_type)
                 setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
@@ -73,7 +70,6 @@ class BaseTrainer:
         for i in range(T - 1):
             bwt += last_row[i] - self.results[i][i]
         return bwt / (T - 1)
-
     def Transfer(self):
         T = len(self.results)
         if T <= 1:

@@ -17,4 +17,4 @@ train:
   max_epoch: 50
   patience: 3
   epsilon: 1e-4
-  r: 4
+  r: 16

@@ -6,10 +6,40 @@ import torch.nn.functional as F
 from config import Config
 from data import TaskData, TaskDataLoader, get_task_sequence
 from tqdm import tqdm
-class ZSCL(BaseTrainer):
+class C_CLIP(BaseTrainer):
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__(wrapper, config)
     
+    def train_all_tasks(self):
+        self.tasks = get_task_sequence()
+        for task_id, task in enumerate(self.tasks):
+            self.add_lora()
+            self.train(task, task_id=task_id)
+            self.plus_lora()
+            self.results.append(self.eval_all())
+        
+        metrics = self.compute_metrics()
+        self.save_logs()
+        self.save_results()
+
+        return metrics
+    
+    def plus_lora(self,lora_modules: LoRAAdapter):
+        """ split and get lora, then param += alpha * lora
+
+        Args:
+            alpha (float): The hyperparameter for deciding how much information to keep from LoRA. Defaults to 0.5.
+        """
+        lora_modules = self.wrapper.split_and_get_lora()
+        device = self.wrapper.model.device
+        for layer_name in lora_modules.keys():
+            attn, layer_type = layer_name.rsplit('.', maxsplit=1)
+            attn = self.wrapper.model.get_submodule(attn)
+            lora = lora_modules[layer_name]
+            current = getattr(attn, layer_type)
+            current.weight.data += lora.get_matrix().to(device) * float(self.config.train.alpha)
+        self.wrapper.model.to(device)
+
     def train(self, task, task_id = None):
         optimizer = self.optimizer(self.wrapper.model.parameters(),
                                    lr = float(self.config.train.lr),

@@ -84,3 +84,26 @@ def load_task(task: dict) -> dict:
 #@ Load toàn bộ task sequence, tự động cache từng task riêng lẻ
 def get_task_sequence() -> list[dict]:
     return [load_task(task) for task in TASK_SEQUENCE]
+
+REF_DATASET = {
+    'name': 'stl10_unlabeled',
+    'hf_id': 'tanganke/stl10',
+    'split': 'unlabeled',
+    'n_samples': 5000,
+}
+
+#@ Load reference dataset cho ZSCL feature distillation — STL-10 unlabeled, 5K ảnh random
+#@ Trả về HuggingFace Dataset (chỉ có 'image', không có label)
+def get_ref_data() -> object:
+    cache_path = CACHE_DIR / REF_DATASET['name']
+    if (cache_path / 'dataset_info.json').exists():
+        print(f"[cache] Loading ref data from {cache_path}")
+        return load_from_disk(str(cache_path))
+
+    print(f"[download] Downloading {REF_DATASET['hf_id']} ({REF_DATASET['split']})...")
+    dataset = load_dataset(REF_DATASET['hf_id'], split=REF_DATASET['split'])
+    dataset = dataset.select(range(REF_DATASET['n_samples']))  #?: lấy 5K đầu — shuffle trước nếu cần random hơn
+    cache_path.mkdir(parents=True, exist_ok=True)
+    dataset.save_to_disk(str(cache_path))
+    print(f"[saved] ref data → {cache_path}")
+    return dataset
