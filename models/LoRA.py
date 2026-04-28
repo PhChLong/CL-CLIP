@@ -26,7 +26,7 @@ class LoRAAdapter(nn.Module):
     def __init__(self, original_layer: nn.Linear,lora_module: LoRA = None, r = 4):
         super().__init__()
         self.org_layer = original_layer
-        self.lora = LoRA(original_layer) if lora_module is None else lora_module
+        self.lora = LoRA(original_layer, r = r) if lora_module is None else lora_module
 
     def forward(self, x): #x sẽ có shape là (_, in_feature)
         original_out = self.org_layer(x) #(_, out_feature)

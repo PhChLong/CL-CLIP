@@ -7,6 +7,7 @@ clip_cl_env/
 *.ckpt
 CL-clip_cl_env
 *.ipynb
+test.py
 .ipynb_checkpoints/
 data/dataset_cache/*
 models/model_cache/*

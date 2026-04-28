@@ -4,4 +4,4 @@ default: 'base'
 
 train:
   distill_temp: 2.0
-  lambda_old: 1.0
+  lambda_old: 0.5
