@@ -1,13 +1,14 @@
 import torch
 from src.models import CLIPWrapper
 from src.config import Config
-from data import TaskData, TaskDataLoader, get_task_sequence
+from ..data import TaskData, TaskDataLoader, get_task_sequence
 import os
 import json
 from datetime import datetime
 from src.models import LoRAAdapter
+from .metrics import compute_all_metrics
 
-class BaseTrainer:
+class Train:
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__()
 
@@ -50,56 +51,15 @@ class BaseTrainer:
                 setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
         self.wrapper.model.to(device)
 
-    def AVG(self):
-        avg = 0.0
-        for i, row in enumerate(self.results):
-            avg += sum(row[:i+1]) / (i+1)
-        return avg / len(self.results)
-    
-    def Last(self):
-        last_row = self.results[-1]
-        seen = len(self.results)
-        return sum(last_row[:seen]) / seen
-    
-    def BWT(self):
-        T = len(self.results)
-        if T <= 1:
-            return 0.0
-        last_row = self.results[-1]
-        bwt = 0.0
-        for i in range(T - 1):
-            bwt += last_row[i] - self.results[i][i]
-        return bwt / (T - 1)
-    def Transfer(self):
-        T = len(self.results)
-        if T <= 1:
-            return 0.0
-        
-        # Upper-right triangle: results[i][j] với j > i
-        # results[i][j] = accuracy task j sau khi train xong task i
-        # Với j > i: task j chưa được fine-tune → đây là zero-shot transfer
-        
-        col_avgs = []
-        for j in range(1, T):          # mỗi task j (trừ task 0)
-            col_vals = []
-            for i in range(j):         # tất cả timestamps i < j
-                col_vals.append(self.results[i][j])
-            col_avgs.append(sum(col_vals) / len(col_vals))
-        
-        return sum(col_avgs) / len(col_avgs)
+    def train(self, task, task_id = None):
+        raise NotImplementedError
 
     def compute_metrics(self):
-        return {
-            "AVG": self.AVG(),
-            "Last": self.Last(),
-            "BWT": self.BWT(),
-            "Transfer": self.Transfer(),
+        return compute_all_metrics(self.results) | {
             "results_matrix": self.results,
             "history": self.history
         }
-    
-    def train(self, task, task_id = None):
-        raise NotImplementedError
+
    #@ Eval accuracy trên tất cả seen tasks, trả về list[float] indexed by task_id
     def eval_all(self) -> list:
         result = [0.0] * self.config.datasets.num_tasks
@@ -113,12 +73,12 @@ class BaseTrainer:
                                             batch_size=self.config.datasets.batch_size,
                                             num_workers=self.config.datasets.num_workers,
                                             pin_memory=True)
-                text_features = self.wrapper.encode_text(data.text_tokenized)  #? encode 1 lần trước loop
+                text_tokenized = data.text_tokenized
 
                 correct = total = 0
                 for images, labels in dataloader:
                     images, labels = images.to(device), labels.to(device)  #! images phải move to device
-                    logits = self.wrapper.forward_with_text_features(text_features, images)
+                    logits = self.wrapper.forward_logits(text_tokenized, images)
                     preds = logits.argmax(dim=-1)
                     correct += (preds == labels).sum().item()
                     total += labels.size(0)
@@ -139,6 +99,7 @@ class BaseTrainer:
 
         return metrics
 
+#@ ==============LOGS=======================
     def save_results(self):
         save_dir = f"results/{self.config.method}"
         os.makedirs(save_dir, exist_ok=True)

@@ -1,12 +1,12 @@
 from src.models import LoRAAdapter, CLIPWrapper
-from src.methods.base_trainer import BaseTrainer
+from engine.base_trainer import Train
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from src.config import Config
 from data import TaskData, TaskDataLoader
 from tqdm import tqdm
-class FineTune(BaseTrainer):
+class FineTune(Train):
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__(wrapper, config)
         self.add_lora()
@@ -47,9 +47,10 @@ class FineTune(BaseTrainer):
             train_loss = valid_loss = 0.0
             for images, labels in tqdm(train_loader, desc=f"Train Epoch {epoch+1}", leave=False):
                 images, labels = images.to(device), labels.to(device)
+                text_tokenized = train_data.text_tokenized
+
                 optimizer.zero_grad()
-                text_features = self.wrapper.encode_text(train_data.text_tokenized)
-                logits = self.wrapper.forward_with_text_features(text_features, images)
+                logits = self.wrapper.forward_logits(text_tokenized, images)
                 loss = criterion(logits, labels)
                 loss.backward()
                 optimizer.step()
@@ -62,7 +63,7 @@ class FineTune(BaseTrainer):
                 text_features = self.wrapper.encode_text(train_data.text_tokenized)  #? encode fresh cho eval
                 for images, labels in tqdm(test_loader, desc=f"Valid Epoch {epoch+1}", leave=False):
                     images, labels = images.to(device), labels.to(device)
-                    logits = self.wrapper.forward_with_text_features(text_features, images)
+                    logits = self.wrapper.forward_logits(text_features, images)
                     loss = criterion(logits, labels)
                     valid_loss += loss.item()
                 valid_loss /= len(test_loader)

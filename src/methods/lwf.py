@@ -1,5 +1,5 @@
 from src.models import CLIPWrapper
-from src.methods.base_trainer import BaseTrainer
+from engine.base_trainer import Train
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -8,7 +8,7 @@ from copy import deepcopy
 from data import TaskData, TaskDataLoader
 from tqdm import tqdm
 
-class LwF_LoRA(BaseTrainer):
+class LwF_LoRA(Train):
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__(wrapper, config)
         self.wrapper = wrapper
@@ -78,13 +78,13 @@ class LwF_LoRA(BaseTrainer):
                 self.wrapper.load_lora(old_LoRA_copy)  #? swap sang teacher
                 with torch.inference_mode():
                     teacher_text_features = self.wrapper.encode_text(train_data.text_tokenized)
-                    old_logits = self.wrapper.forward_with_text_features(teacher_text_features, images)
+                    old_logits = self.wrapper.forward_logits(teacher_text_features, images)
                 soft_targets = F.softmax(old_logits / T, dim=1)  #? không cần .detach() — inference_mode đã ngăn grad
                 self.wrapper.split_and_get_lora()
                 self.wrapper.load_lora(current_LoRA)  #? swap lại student
 
                 #* tính current logits và loss
-                logits = self.wrapper.forward_with_text_features(text_features, images)
+                logits = self.wrapper.forward_logits(text_features, images)
                 soft_predictions = F.log_softmax(logits / T, dim=1)
                 loss_kd = F.kl_div(soft_predictions, soft_targets, reduction='batchmean') * (T ** 2)
                 loss_ce = criterion(logits, labels)
@@ -102,7 +102,7 @@ class LwF_LoRA(BaseTrainer):
                 text_features = self.wrapper.encode_text(train_data.text_tokenized)  #? encode 1 lần cho eval
                 for images, labels in tqdm(test_loader, desc=f"Valid Epoch {epoch+1}", leave=False):
                     images, labels = images.to(device), labels.to(device)
-                    logits = self.wrapper.forward_with_text_features(text_features, images)
+                    logits = self.wrapper.forward_logits(text_features, images)
                     loss = criterion(logits, labels)
                     valid_loss += loss.item()
             valid_loss /= len(test_loader)
