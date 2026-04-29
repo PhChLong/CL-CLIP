@@ -1,9 +1,9 @@
-from models import CLIPWrapper, LoRAAdapter
-from methods.base_trainer import BaseTrainer
+from src.models import CLIPWrapper, LoRAAdapter
+from src.methods.base_trainer import BaseTrainer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from config import Config
+from src.config import Config
 from data import TaskData, TaskDataLoader, get_task_sequence
 from tqdm import tqdm
 class C_CLIP(BaseTrainer):

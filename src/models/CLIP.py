@@ -1,6 +1,6 @@
 from transformers import CLIPProcessor, CLIPModel
 import torch.nn as nn
-from models.LoRA import LoRAAdapter
+from src.models.LoRA import LoRAAdapter
 from pathlib import Path
 
 MODEL_CACHE_DIR = Path(__file__).parent / "model_cache"

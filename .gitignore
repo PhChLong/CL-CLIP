@@ -9,5 +9,5 @@ CL-clip_cl_env
 *.ipynb
 test.py
 .ipynb_checkpoints/
-data/dataset_cache/*
-models/model_cache/*
+src/data/dataset_cache/*
+src/models/model_cache/*

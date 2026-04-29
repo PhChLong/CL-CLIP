@@ -1,7 +1,7 @@
-from models import CLIPWrapper
+from src.models import CLIPWrapper
 import torch
-from methods import FineTune, LwF_LoRA
-from config import Config
+from src.methods import FineTune, LwF_LoRA
+from src.config import Config
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     clip = CLIPWrapper(device=device)

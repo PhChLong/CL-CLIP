@@ -1,15 +1,16 @@
-from models import CLIPWrapper, LoRAAdapter
-from methods.base_trainer import BaseTrainer
+from src.models import LoRAAdapter, CLIPWrapper
+from src.methods.base_trainer import BaseTrainer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from config import Config
-from data import TaskData, TaskDataLoader, get_task_sequence
+from src.config import Config
+from data import TaskData, TaskDataLoader
 from tqdm import tqdm
-class ZSCL(BaseTrainer):
+class FineTune(BaseTrainer):
     def __init__(self, wrapper: CLIPWrapper, config: Config):
         super().__init__(wrapper, config)
-    
+        self.add_lora()
+
     def train(self, task, task_id = None):
         optimizer = self.optimizer(self.wrapper.model.parameters(),
                                    lr = float(self.config.train.lr),
@@ -17,7 +18,7 @@ class ZSCL(BaseTrainer):
 
         criterion = nn.CrossEntropyLoss()
 
-        #@ =======================Data and Dataloader============================
+        #* =======================Data and Dataloader============================
         train_data = TaskData(task, "train", processor= self.wrapper.processor)
         test_data = TaskData(task, "test", processor= self.wrapper.processor)
         train_loader = TaskDataLoader(
@@ -34,14 +35,14 @@ class ZSCL(BaseTrainer):
 
         device = self.wrapper.model.device 
 
-        #@ stop khi improvement nhor honw epsilon        
+        #* stop khi improvement nhor honw epsilon        
         epsilon = float(self.config.train.epsilon)
         patience = int(self.config.train.patience)  #? số epoch liên tiếp không cải thiện trước khi dừng
         patience_counter = 0
         best_valid_loss = float("inf")  
 
         for epoch in range(self.config.train.max_epoch):
-            #@ ====================TRAIN=============================
+            #* ====================TRAIN=============================
             self.wrapper.model.train()
             train_loss = valid_loss = 0.0
             for images, labels in tqdm(train_loader, desc=f"Train Epoch {epoch+1}", leave=False):
@@ -55,7 +56,7 @@ class ZSCL(BaseTrainer):
                 train_loss += loss.item()
             train_loss /= len(train_loader)
 
-            #@ ======================Eval===========================
+            #* ======================Eval===========================
             self.wrapper.model.eval()
             with torch.inference_mode():
                 text_features = self.wrapper.encode_text(train_data.text_tokenized)  #? encode fresh cho eval
@@ -66,7 +67,7 @@ class ZSCL(BaseTrainer):
                     valid_loss += loss.item()
                 valid_loss /= len(test_loader)
 
-            #@ ====================lưu history================
+            #* ====================lưu history================
             log = {
                 "task_id": task_id,
                 "epoch": epoch,
@@ -79,7 +80,7 @@ class ZSCL(BaseTrainer):
             self.logs.append(message)
             print(message)
 
-        #@ ====================== EARLY STOPPING ============================
+        #* ====================== EARLY STOPPING ============================
             if valid_loss < best_valid_loss - epsilon:
                 best_valid_loss = valid_loss
                 patience_counter = 0  #? cải thiện đủ → reset counter

@@ -1,9 +1,9 @@
-from models import CLIPWrapper
-from methods.base_trainer import BaseTrainer
+from src.models import CLIPWrapper
+from src.methods.base_trainer import BaseTrainer
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from config import Config
+from src.config import Config
 from copy import deepcopy
 from data import TaskData, TaskDataLoader
 from tqdm import tqdm
@@ -88,7 +88,7 @@ class LwF_LoRA(BaseTrainer):
                 soft_predictions = F.log_softmax(logits / T, dim=1)
                 loss_kd = F.kl_div(soft_predictions, soft_targets, reduction='batchmean') * (T ** 2)
                 loss_ce = criterion(logits, labels)
-                loss = loss_kd + loss_ce
+                loss = loss_kd * self.config.train.lambda_old + loss_ce
 
                 loss.backward()
                 optimizer.step()

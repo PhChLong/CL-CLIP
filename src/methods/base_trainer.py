@@ -1,11 +1,11 @@
 import torch
-from models import CLIPWrapper
-from config import Config
+from src.models import CLIPWrapper
+from src.config import Config
 from data import TaskData, TaskDataLoader, get_task_sequence
 import os
 import json
 from datetime import datetime
-from models import LoRAAdapter
+from src.models import LoRAAdapter
 
 class BaseTrainer:
     def __init__(self, wrapper: CLIPWrapper, config: Config):
