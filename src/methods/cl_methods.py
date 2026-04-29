@@ -1,4 +1,5 @@
 import torch
 from torch import nn
 class ContinualLearningMethod(nn.Module):
-    pass
+    def __init__(self):
+        pass

@@ -33,6 +33,7 @@ class CLIPWrapper(nn.Module):
         self.num_layers = len(self.model.text_model.encoder.layers)
     
         self.num_layers = len(self.model.text_model.encoder.layers)
+
     #@ ======================sub model forward====================
     def forward_image_vision_model(self, image_tensors):
         pixel_values = image_tensors.to(self.model.device, non_blocking = True)
@@ -66,6 +67,13 @@ class CLIPWrapper(nn.Module):
         image_features = self.model.get_image_features(pixel_values=pixel_values).pooler_output
         image_features = image_features / image_features.norm(dim=-1, keepdim=True)
         return image_features
+    
+    #? When inference, dont need to encode_text multiple times since the promps is small
+    def forward_with_text_feature(self, text_features, image_tensors):
+        image_features = self.encode_image(image_tensors)
+        logit_scale = self.model.logit_scale.exp() #? to scale the logits to get better results
+        logits = logit_scale * image_features @ text_features.T
+        return logits
 
     def forward_logits(self, text_tokenized, image_tensors):
         image_features = self.encode_image(image_tensors)
@@ -80,6 +88,27 @@ class CLIPWrapper(nn.Module):
         return self.model(**inputs)
     
     #@ ================LoRA related===========================
+    def add_lora(self):
+        device = self.model.device
+
+        # ? Freeze model lại
+        for param in self.model.parameters():
+            param.requires_grad = False
+
+        #? thêm LoRA vào các layer q_proj, v_proj
+        for i in range(self.config.model.num_layers):
+            for layer_type in ['q_proj', 'v_proj']:
+                #@ Vision
+                attn = self.model.vision_model.encoder.layers[i].self_attn
+                original = getattr(attn, layer_type)
+                setattr(attn, layer_type, LoRAAdapter(original, r= self.config.train.r))
+
+                #@ Text
+                attn = self.model.text_model.encoder.layers[i].self_attn
+                original = getattr(attn, layer_type)
+                setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
+        self.model.to(device)
+
     def split_and_get_lora(self):
         lora_modules = {}
         device = self.model.device
