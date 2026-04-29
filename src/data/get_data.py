@@ -52,7 +52,7 @@ TASK_SEQUENCE = [
 # ─────────────────────────────────────────────
 #@ Load 1 task — dùng cache nếu đã có, download nếu chưa
 #@ Trả về dict với 'name', 'train', 'test', 'label_key', 'label_names'
-def load_task(task: dict) -> dict:
+def load_task(task: dict, test_pipeline: bool) -> dict:
     cache_path = CACHE_DIR / task['name']
 
     if cache_path.exists():
@@ -67,6 +67,16 @@ def load_task(task: dict) -> dict:
 
     train_data = dataset[task['train_split']]
     test_data  = dataset[task['test_split']]
+
+    #@ néu chỉ đơn giản là test xem chạy oke ko thì sẽ chỉ lấy 1% data thôi
+    if test_pipeline:
+        subset_ratio = 0.001
+        train_n = int(max(1, len(train_data) * subset_ratio))
+        test_n = int(max(1, len(test_data) * subset_ratio))
+
+        train_data = train_data.shuffle(seed = 42).select(range(train_n))
+        test_data = test_data.shuffle(seed = 42).select(range(test_n))
+
     label_key  = task['label_key']
 
     feature = train_data.features[label_key]
@@ -82,8 +92,8 @@ def load_task(task: dict) -> dict:
     }
 
 #@ Load toàn bộ task sequence, tự động cache từng task riêng lẻ
-def get_task_sequence() -> list[dict]:
-    return [load_task(task) for task in TASK_SEQUENCE]
+def get_task_sequence(test_pipeline = False) -> list[dict]:
+    return [load_task(task, test_pipeline) for task in TASK_SEQUENCE]
 
 REF_DATASET = {
     'name': 'stl10_unlabeled',

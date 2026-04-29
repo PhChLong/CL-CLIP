@@ -6,7 +6,7 @@ from ..data import TaskData, TaskDataLoader, get_task_sequence
 import os
 import json
 from datetime import datetime
-from ..methods import ContinualLearningMethod, FineTune
+from ..methods import FineTune
 from .metrics import compute_all_metrics
 from tqdm import tqdm
 
@@ -35,27 +35,23 @@ class Train:
         method.set_wrapper(wrapper)
         self.method = method
 
-    def train(self, task, task_id = None):
+    def train(self, task_id = None):
         optimizer = self.optimizer(self.wrapper.model.parameters(),
                                    lr = float(self.config.train.lr),
                                    weight_decay = float(self.config.train.weight_decay))
 
         self.method.set_criterion(nn.CrossEntropyLoss())
 
+        #@ check if the method requires task_id
+        if self.method.requires_task_id:
+            self.method.initialize(task_id)
+
         #* =======================Data and Dataloader============================
-        train_data = TaskData(task, "train", processor= self.wrapper.processor)
-        test_data = TaskData(task, "test", processor= self.wrapper.processor)
-        train_loader = TaskDataLoader(
-            train_data,
-            batch_size= self.config.datasets.batch_size,
-            num_workers=self.config.datasets.num_workers,
-            pin_memory= True)
-        test_loader = TaskDataLoader(
-            test_data,
-            batch_size = self.config.datasets.batch_size,
-            num_workers=self.config.datasets.num_workers,
-            pin_memory=True
-        )
+
+        train_data = self.train_datas[task_id]
+        test_data = self.test_datas[task_id]
+        train_loader = self.train_loaders[task_id]
+        test_loader = self.test_loaders[task_id]
 
         device = self.wrapper.model.device 
 
@@ -71,8 +67,9 @@ class Train:
             train_loss = valid_loss = 0.0
             for images, labels in tqdm(train_loader, desc=f"Train Epoch {epoch+1}", leave=False):
                 images, labels = images.to(device), labels.to(device)
-                text_tokenized = train_data.text_tokenize
+                text_tokenized = train_data.text_tokenized
                 optimizer.zero_grad()
+
                 loss = self.method.compute_loss(images, labels, text_tokenized)
                 loss.backward()
                 optimizer.step()
@@ -121,17 +118,14 @@ class Train:
 
    #@ Eval accuracy trên tất cả seen tasks, trả về list[float] indexed by task_id
     def eval_all(self) -> list:
-        result = [0.0] * self.config.datasets.num_tasks
+        result = [0.0] * len(self.tasks)
         self.wrapper.model.eval()
         device = self.wrapper.model.device
 
         with torch.inference_mode():
-            for task_id, task in enumerate(self.tasks):
-                data = TaskData(task, 'test', processor=self.wrapper.processor)
-                dataloader = TaskDataLoader(data,
-                                            batch_size=self.config.datasets.batch_size,
-                                            num_workers=self.config.datasets.num_workers,
-                                            pin_memory=True)
+            for task_id in range(len(self.tasks)):
+                data = self.test_datas[task_id]
+                dataloader = self.test_loaders[task_id]
                 text_tokenized = data.text_tokenized
 
                 correct = total = 0
@@ -144,16 +138,41 @@ class Train:
 
                 result[task_id] = correct / total if total > 0 else 0.0
 
+
         return result
     
     #@ The training script
-    def train_all_tasks(self):
-
+    def train_all_tasks(self, test_pipeline = False):
         self.wrapper.split_and_get_lora()
-        self.wrapper.add_lora()
-        self.tasks = get_task_sequence()
-        for task_id, task in enumerate(self.tasks):
-            self.train(task, task_id=task_id)
+        self.wrapper.add_lora(r = self.config.train.r)
+        self.tasks = get_task_sequence(test_pipeline)
+        self.train_datas = [
+            TaskData(task, "train", processor= self.wrapper.processor)
+            for task in self.tasks
+        ]
+        self.train_loaders = [
+            TaskDataLoader(
+                train_data,
+                batch_size= self.config.datasets.batch_size,
+                num_workers=self.config.datasets.num_workers,
+                pin_memory= bool(self.config.datasets.pin_memory))
+            for train_data in self.train_datas
+        ]
+        self.test_datas = [
+            TaskData(task, "test", processor= self.wrapper.processor)
+            for task in self.tasks
+        ]
+        self.test_loaders = [
+            TaskDataLoader(
+                test_data,
+                batch_size= self.config.datasets.batch_size,
+                num_workers=self.config.datasets.num_workers,
+                pin_memory= bool(self.config.datasets.pin_memory))
+            for test_data in self.test_datas
+        ]
+
+        for task_id in range(len(self.tasks)):
+            self.train(task_id=task_id)
             self.results.append(self.eval_all())
         
         metrics = self.compute_metrics()

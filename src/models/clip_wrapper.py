@@ -2,6 +2,7 @@ from transformers import CLIPProcessor, CLIPModel
 import torch.nn as nn
 from src.models.LoRA import LoRAAdapter
 from pathlib import Path
+from src.config import Config
 
 MODEL_CACHE_DIR = Path(__file__).parent / "model_cache"
 
@@ -29,29 +30,11 @@ class CLIPWrapper(nn.Module):
 
         if device is not None:
             self.model.to(device)
-    
+        
+        #@ only use config to get number of layers of the model from the base config
+        #@ does not matter which config we use
+        self.config = Config('base')
         self.num_layers = len(self.model.text_model.encoder.layers)
-    
-        self.num_layers = len(self.model.text_model.encoder.layers)
-
-    #@ ======================sub model forward====================
-    def forward_image_vision_model(self, image_tensors):
-        pixel_values = image_tensors.to(self.model.device, non_blocking = True)
-        outs = self.vision_model(pixel_values).pooler_output
-        return outs
-
-
-    def forward_text_text_model(self, prompts):
-        inputs = self.processor(
-            text=prompts,
-            images=None,
-            return_tensors='pt',
-            padding=True
-        )
-        inputs = {k: v.to(self.model.device) for k, v in inputs.items() if k in ['input_ids', 'attention_mask']}
-        outs = self.text_model(**inputs, return_dict = True).pooler_output
-        return outs
-
 
     #@=========================full model forward====================    
     def encode_text(self, text_tokenized):
@@ -88,7 +71,7 @@ class CLIPWrapper(nn.Module):
         return self.model(**inputs)
     
     #@ ================LoRA related===========================
-    def add_lora(self):
+    def add_lora(self, r):
         device = self.model.device
 
         # ? Freeze model lại
@@ -101,12 +84,12 @@ class CLIPWrapper(nn.Module):
                 #@ Vision
                 attn = self.model.vision_model.encoder.layers[i].self_attn
                 original = getattr(attn, layer_type)
-                setattr(attn, layer_type, LoRAAdapter(original, r= self.config.train.r))
+                setattr(attn, layer_type, LoRAAdapter(original, r= r))
 
                 #@ Text
                 attn = self.model.text_model.encoder.layers[i].self_attn
                 original = getattr(attn, layer_type)
-                setattr(attn, layer_type, LoRAAdapter(original, r=self.config.train.r))
+                setattr(attn, layer_type, LoRAAdapter(original, r= r))
         self.model.to(device)
 
     def split_and_get_lora(self):
