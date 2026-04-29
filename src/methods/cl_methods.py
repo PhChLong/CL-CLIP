@@ -15,8 +15,11 @@ class ContinualLearningMethod:
     def set_wrapper(self, wrapper):
         self.wrapper: CLIPWrapper = wrapper
     
-    def compute_loss_inference_mode(self):
-        raise NotImplementedError
+    #@ đặc biệt dùng khi eval, vì không cần encode text_tokenized nhiều lần
+    def compute_loss_inference_mode(self, images, labels, text_features):
+        logits = self.wrapper.forward_with_text_feature(text_features, images)
+        loss_ce = self.criterion(logits, labels)
+        return loss_ce
 
     def compute_loss(self):
         raise NotImplementedError

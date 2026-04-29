@@ -24,11 +24,6 @@ class LwF_LoRA(ContinualLearningMethod):
         old_LoRA = self.wrapper.split_and_get_lora()
         self.old_LoRA = deepcopy(old_LoRA)
         self.wrapper.load_lora(old_LoRA)
-        
-    def compute_loss_inference_mode(self, images, labels, text_features):
-        logits = self.wrapper.forward_with_text_feature(text_features, images)
-        loss_ce = self.criterion(logits, labels)
-        return loss_ce
 
     def compute_loss(self, images, labels, text_tokenized):
         #@loss_kd
