@@ -24,7 +24,7 @@ class ContinualLearningMethod:
         loss_ce = self.criterion(logits, labels)
         return loss_ce
 
-    def compute_loss(self):
+    def compute_loss(self, images, labels, text_tokenized):
         raise NotImplementedError
     
     def initialize(self, task_id):

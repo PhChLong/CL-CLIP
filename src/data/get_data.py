@@ -98,7 +98,7 @@ def get_task_sequence(test_pipeline = False) -> list[dict]:
 REF_DATASET = {
     'name': 'stl10_unlabeled',
     'hf_id': 'tanganke/stl10',
-    'split': 'unlabeled',
+    'split': 'train',
     'n_samples': 5000,
 }
 
@@ -108,12 +108,20 @@ def get_ref_data() -> object:
     cache_path = CACHE_DIR / REF_DATASET['name']
     if (cache_path / 'dataset_info.json').exists():
         print(f"[cache] Loading ref data from {cache_path}")
-        return load_from_disk(str(cache_path))
+        dataset = load_from_disk(str(cache_path))
+    else:
+        print(f"[download] Downloading {REF_DATASET['hf_id']} ({REF_DATASET['split']})...")
+        dataset = load_dataset(REF_DATASET['hf_id'], split=REF_DATASET['split'])
+        dataset = dataset.shuffle(seed = 42).select(range(REF_DATASET['n_samples']))  #?: lấy 5K đầu — shuffle trước nếu cần random hơn
+        cache_path.mkdir(parents=True, exist_ok=True)
+        dataset.save_to_disk(str(cache_path))
+        print(f"[saved] ref data → {cache_path}")
 
-    print(f"[download] Downloading {REF_DATASET['hf_id']} ({REF_DATASET['split']})...")
-    dataset = load_dataset(REF_DATASET['hf_id'], split=REF_DATASET['split'])
-    dataset = dataset.select(range(REF_DATASET['n_samples']))  #?: lấy 5K đầu — shuffle trước nếu cần random hơn
-    cache_path.mkdir(parents=True, exist_ok=True)
-    dataset.save_to_disk(str(cache_path))
-    print(f"[saved] ref data → {cache_path}")
-    return dataset
+    label_names = dataset.features['label'].names
+
+    return {
+        'name'       : REF_DATASET['name'],
+        'train'      : dataset,
+        'label_key'  : 'label',
+        'label_names': label_names,
+    }

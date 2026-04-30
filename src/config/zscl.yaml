@@ -1,0 +1,6 @@
+method: "zscl"
+
+default: 'base'
+
+train:
+  lambda_distill: 0.5

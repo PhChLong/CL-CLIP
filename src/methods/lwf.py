@@ -2,7 +2,6 @@ import torch
 import torch.nn.functional as F
 from copy import deepcopy
 from .cl_methods import ContinualLearningMethod
-
 class LwF_LoRA(ContinualLearningMethod):
     def __init__(self):
         super().__init__()
