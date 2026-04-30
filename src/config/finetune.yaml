@@ -2,5 +2,3 @@ method: "finetune"
 
 default: "base"
 
-train:
-  weight_decay: 0.1

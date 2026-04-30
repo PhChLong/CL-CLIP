@@ -9,7 +9,6 @@ class FineTune(ContinualLearningMethod):
     def __init__(self):
         super().__init__()
    
-
     def compute_loss(self, images, labels, text_tokenized):
         logits = self.wrapper.forward_logits(text_tokenized, images)
         loss_ce = self.criterion(logits, labels)
