@@ -28,11 +28,11 @@ def build_parser():
 
     parser.add_argument("--model-num-layers", type=int, default=None)
 
-    parser.add_argument("--datasets-root", default=None)
-    parser.add_argument("--datasets-batch-size", type=int, default=None)
-    parser.add_argument("--datasets-image-size", type=int, default=None)
-    parser.add_argument("--datasets-num-workers", type=int, default=None)
-    parser.add_argument("--datasets-pin-memory", type=str_to_bool, default=None)
+    parser.add_argument("--root", default=None)
+    parser.add_argument("--batch-size", type=int, default=None)
+    parser.add_argument("--image-size", type=int, default=None)
+    parser.add_argument("--num-workers", type=int, default=None)
+    parser.add_argument("--pin-memory", type=str_to_bool, default=None)
 
     parser.add_argument("--train-name", default=None)
     parser.add_argument("--train-lr", type=float, default=None)
@@ -64,11 +64,10 @@ def override_config(config, args):
 
     set_if_not_none(config, ("model", "num_layers"), args.model_num_layers)
 
-    set_if_not_none(config, ("datasets", "root"), args.datasets_root)
-    set_if_not_none(config, ("datasets", "batch_size"), args.datasets_batch_size)
-    set_if_not_none(config, ("datasets", "image_size"), args.datasets_image_size)
-    set_if_not_none(config, ("datasets", "num_workers"), args.datasets_num_workers)
-    set_if_not_none(config, ("datasets", "pin_memory"), args.datasets_pin_memory)
+    set_if_not_none(config, ("datasets", "batch_size"), args.batch_size)
+    set_if_not_none(config, ("datasets", "image_size"), args.image_size)
+    set_if_not_none(config, ("datasets", "num_workers"), args.num_workers)
+    set_if_not_none(config, ("datasets", "pin_memory"), args.pin_memory)
 
     set_if_not_none(config, ("train", "name"), args.train_name)
     set_if_not_none(config, ("train", "lr"), args.train_lr)
