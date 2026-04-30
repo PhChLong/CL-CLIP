@@ -116,7 +116,6 @@ class Train:
             "history": self.history
         }
 
-   #@ Eval accuracy trên tất cả seen tasks, trả về list[float] indexed by task_id
     def eval_all(self) -> list:
         result = [0.0] * len(self.tasks)
         self.wrapper.model.eval()

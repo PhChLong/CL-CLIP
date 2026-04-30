@@ -6,6 +6,8 @@ def metric(fn):
 
 @metric
 def AVG(results):
+    # Average accuracy over seen tasks after each training step.
+    # At step i, only tasks 0..i are treated as learned/seen.
     avg = 0.0
     for i, row in enumerate(results):
         avg += sum(row[:i+1]) / (i+1)
@@ -13,12 +15,15 @@ def AVG(results):
 
 @metric
 def Last(results):
+    # Final average accuracy over all tasks after the last training step.
     last_row = results[-1]
     seen = len(results)
     return sum(last_row[:seen]) / seen
 
 @metric
 def BWT(results):
+    # Backward transfer: final accuracy change on old tasks after later training.
+    # Positive means later tasks improved old tasks; negative means forgetting.
     T = len(results)
     if T <= 1:
         return 0.0
@@ -30,6 +35,8 @@ def BWT(results):
 
 @metric
 def Transfer(results):
+    # Zero-shot transfer before each task is trained.
+    # Uses the upper-right triangle: results[i][j] where j > i.
     T = len(results)
     if T <= 1:
         return 0.0
