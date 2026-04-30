@@ -34,6 +34,7 @@ class Train:
         self.run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
         method.set_wrapper(wrapper)
         self.method = method
+        self.method.set_config(self.config)
 
     def train(self, task_id = None):
         optimizer = self.optimizer(self.wrapper.model.parameters(),

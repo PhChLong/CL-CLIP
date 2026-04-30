@@ -1,6 +1,6 @@
-import torch
-from torch import nn
 from ..models import CLIPWrapper
+from ..config import Config
+
 class ContinualLearningMethod:
     def __init__(self):
         super().__init__()
@@ -8,6 +8,9 @@ class ContinualLearningMethod:
         self.wrapper = None
         self.requires_task_id = False
         self.config = None
+    
+    def set_config(self, config:Config):
+        self.config = config
     
     def set_criterion(self, criterion):
         self.criterion = criterion
