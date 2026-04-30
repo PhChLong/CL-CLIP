@@ -5,3 +5,4 @@ transformers
 pillow
 tqdm
 pyyaml
+kagglehub

@@ -32,9 +32,11 @@ class Train:
         #* lưu log dưới dạng text
         self.logs = []
         self.run_id = datetime.now().strftime("%Y%m%d_%H%M%S")
-        method.set_wrapper(wrapper)
+
         self.method = method
+        self.method.set_wrapper(wrapper)
         self.method.set_config(self.config)
+        self.method.initialize()
 
     def train(self, task_id = None):
         optimizer = self.optimizer(self.wrapper.model.parameters(),

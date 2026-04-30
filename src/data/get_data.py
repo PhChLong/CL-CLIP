@@ -1,3 +1,5 @@
+import shutil
+import kagglehub
 import os
 os.environ["HF_HUB_DISABLE_SYMLINKS_WARNING"] = "1"
 
@@ -49,6 +51,7 @@ TASK_SEQUENCE = [
         'label_key': 'label',
     },
 ]
+
 # ─────────────────────────────────────────────
 #@ Load 1 task — dùng cache nếu đã có, download nếu chưa
 #@ Trả về dict với 'name', 'train', 'test', 'label_key', 'label_names'
@@ -95,33 +98,97 @@ def load_task(task: dict, test_pipeline: bool) -> dict:
 def get_task_sequence(test_pipeline = False) -> list[dict]:
     return [load_task(task, test_pipeline) for task in TASK_SEQUENCE]
 
+
+#@Ref data for ZSCL
+
 REF_DATASET = {
-    'name': 'stl10_unlabeled',
-    'hf_id': 'tanganke/stl10',
-    'split': 'train',
-    'n_samples': 5000,
+    'name_image': 'miniimagenet',
+    'image_kaggle_id': 'deeptrial/miniimagenet',
+    'name_text': "conceptual_captions",
+    'text_hf_id': "conceptual_captions"
 }
 
-#@ Load reference dataset cho ZSCL feature distillation — STL-10 unlabeled, 5K ảnh random
-#@ Trả về HuggingFace Dataset (chỉ có 'image', không có label)
-def get_ref_data() -> object:
-    cache_path = CACHE_DIR / REF_DATASET['name']
-    if (cache_path / 'dataset_info.json').exists():
-        print(f"[cache] Loading ref data from {cache_path}")
+def get_ref_text_dir(test_pipeline:bool):
+    cache_path = CACHE_DIR / REF_DATASET['name_text']
+
+    if cache_path.exists():
+        print(f"[cache] Loading {REF_DATASET['name_text']} from {cache_path}")
         dataset = load_from_disk(str(cache_path))
     else:
-        print(f"[download] Downloading {REF_DATASET['hf_id']} ({REF_DATASET['split']})...")
-        dataset = load_dataset(REF_DATASET['hf_id'], split=REF_DATASET['split'])
-        dataset = dataset.shuffle(seed = 42).select(range(REF_DATASET['n_samples']))  #?: lấy 5K đầu — shuffle trước nếu cần random hơn
+        print(f"[download] Downloading {REF_DATASET['name']}...")
+        dataset = load_dataset(REF_DATASET['text_hf_id'])
+        dataset = dataset['train']
+        dataset = dataset.shuffle(seed = 42).select(range(5000))
+
         cache_path.mkdir(parents=True, exist_ok=True)
         dataset.save_to_disk(str(cache_path))
-        print(f"[saved] ref data → {cache_path}")
+        print(f"[saved] {REF_DATASET['name']} → {cache_path}")
 
-    label_names = dataset.features['label'].names
+    #@ néu chỉ đơn giản là test xem chạy oke ko thì sẽ chỉ lấy 1% data thôi
+    if test_pipeline:
+        subset_ratio = 0.01
+        size = int(max(1, len(dataset) * subset_ratio))
+
+        dataset = dataset.select(range(size))
+
+    feature = train_data.features[label_key]
+    #? ClassLabel có .names, Value('int64') thì không — cần handle cả hai
+    label_names = feature.names if hasattr(feature, 'names') else None
 
     return {
-        'name'       : REF_DATASET['name'],
-        'train'      : dataset,
-        'label_key'  : 'label',
+        'name'       : REF_DATASET['name_text'],
+        'label_key'  : label_key,
         'label_names': label_names,
     }
+
+def get_ref_img_dir() -> Path:
+    image_cache_path = CACHE_DIR / REF_DATASET['name_image']
+    image_suffixes = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
+
+    #@ check nếu trong folder đã chứa ảnh, thì return
+    cached_images = [
+        path for path in image_cache_path.glob("*")
+        if path.is_file() and path.suffix.lower() in image_suffixes
+    ] if image_cache_path.exists() else []
+
+    if cached_images:
+        print(f"[cache] ref images already stored in {image_cache_path}")
+        return image_cache_path
+
+    #@ nếu chưa tồn tại thì download data
+    print(f"[download] downloading {REF_DATASET['image_kaggle_id']} ")
+    image_cache_path.mkdir(parents=True, exist_ok=True)
+
+    kaggle_cache_dir = image_cache_path / "kagglehub_cache"
+    os.environ["KAGGLEHUB_CACHE"] = str(kaggle_cache_dir)
+
+    try:
+        downloaded_path = Path(kagglehub.dataset_download(REF_DATASET['image_kaggle_id']))
+        source_images = [
+            path for path in downloaded_path.rglob("*")
+            if path.is_file() and path.suffix.lower() in image_suffixes
+        ]
+
+        if not source_images:
+            raise FileNotFoundError(f"No image files found in downloaded dataset: {downloaded_path}")
+
+        copied_count = 0
+        for image in source_images:
+            relative = image.relative_to(downloaded_path).with_suffix("")
+            dest_name = "_".join(relative.parts) + image.suffix.lower()
+            dest_path = image_cache_path / dest_name
+
+            counter = 1
+            while dest_path.exists():
+                dest_path = image_cache_path / f"{Path(dest_name).stem}_{counter}{image.suffix.lower()}"
+                counter += 1
+
+            shutil.copy2(image, dest_path)
+            copied_count += 1
+    finally:
+        if kaggle_cache_dir.exists():
+            shutil.rmtree(kaggle_cache_dir)
+
+    print("Original KaggleHub path:", downloaded_path)
+    print(f"Copied {copied_count} images to:", image_cache_path)
+    return image_cache_path

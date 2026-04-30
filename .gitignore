@@ -11,3 +11,4 @@ test.py
 .ipynb_checkpoints/
 src/data/dataset_cache/*
 src/models/model_cache/*
+*.jpeg

@@ -6,7 +6,7 @@ datasets:
   root: "./data/datasets.py"
   batch_size: 2
   image_size: 224
-  num_workers: 4
+  num_workers: 0
   pin_memory: False
 
 train:

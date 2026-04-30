@@ -1,8 +1,10 @@
 from torch.utils.data import Dataset, DataLoader
 from functools import partial
 import torch
+
 class TaskData(Dataset):
     def __init__(self, task, split, processor):
+        super().__init__()
         self.labels = task[split][task['label_key']]          
         self.imgs = task[split]['img'] if 'img' in task[split].features else task[split]['image']
         self.image_processor = partial(processor.image_processor, return_tensors='pt')
@@ -33,3 +35,14 @@ class TaskDataLoader(DataLoader):
             pin_memory= pin_memory,
             collate_fn=collate_fn
         )
+
+class RefData(Dataset):
+    def __init__(self, processor):
+        super().__init__()
+
+
+    def __len__(self):
+        pass
+
+    def __getitem__(self, index):
+        return super().__getitem__(index)
