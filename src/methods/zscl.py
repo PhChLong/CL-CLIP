@@ -90,9 +90,5 @@ class ZSCL(ContinualLearningMethod):
 
         #@ final loss
         loss = loss_ce + self.config.train.lambda_distill * (loss_lwf_img + loss_lwf_text)
-        print(
-            f"{loss_lwf_img=}\n"
-            f"{loss_lwf_text=}\n"
-        )
         return loss
     
