@@ -1,2 +1,2 @@
 from .clip_wrapper import CLIPWrapper
-from .LoRA import LoRAAdapter, LoRA
+from .lora import LoRAAdapter, LoRA

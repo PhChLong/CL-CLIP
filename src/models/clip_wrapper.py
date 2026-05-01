@@ -1,6 +1,6 @@
 from transformers import CLIPProcessor, CLIPModel
 import torch.nn as nn
-from src.models.LoRA import LoRAAdapter
+from src.models.lora import LoRAAdapter
 from pathlib import Path
 from src.config import Config
 

@@ -1,6 +1,10 @@
+from pathlib import Path
 from torch.utils.data import Dataset, DataLoader
 from functools import partial
 import torch
+import torch.nn.functional as F
+from .get_data import get_ref_img_dir, get_ref_text_data
+from PIL import Image
 
 class TaskData(Dataset):
     def __init__(self, task, split, processor):
@@ -36,13 +40,62 @@ class TaskDataLoader(DataLoader):
             collate_fn=collate_fn
         )
 
-class RefData(Dataset):
+class RefImageData(Dataset):
     def __init__(self, processor):
         super().__init__()
+        self.img_dir: Path = get_ref_img_dir()
+        self.image_processor = partial(processor.image_processor, return_tensors='pt')
 
+        image_suffixes = {'.jpg', '.jpeg', '.png', '.bmp', '.webp'}
+        self.img_paths = [path for path in self.img_dir.iterdir() if path.suffix.lower() in image_suffixes]
 
     def __len__(self):
-        pass
+        return len(self.img_paths)
 
     def __getitem__(self, index):
-        return super().__getitem__(index)
+        img_tensor = self.image_processor(images= Image.open(self.img_paths[index]))['pixel_values'].squeeze(0)
+        return img_tensor
+    
+
+class RefTextData(Dataset):
+    def __init__(self, processor):
+        super().__init__()
+        self.text_data: Dataset = get_ref_text_data()
+        self.text_processor = partial(processor, images=None, return_tensors='pt', padding=True)
+
+    def __len__(self):
+        return self.text_data['caption_data'].num_rows
+
+    def __getitem__(self, index):
+        return self.text_processor(text = self.text_data['caption_data'][index]['caption'])['input_ids'].squeeze()
+
+PADDING_ID = 49407 #? EOS/PAD in CLIP, 49406 is BOS
+def ref_text_collate_fn(batch):
+    max_len = max(_.shape[0] for _ in batch)
+    padded_batch = []
+    for t in batch:
+        padded_batch.append(F.pad(t, (0, max_len - t.shape[0]), value = PADDING_ID))
+    return torch.stack(padded_batch)
+
+class RefTextDataloader(DataLoader):
+    def __init__(self, data, batch_size, num_workers, pin_memory):
+        super().__init__(
+            dataset = data,
+            batch_size = batch_size,
+            num_workers= num_workers,
+            pin_memory= pin_memory,
+            collate_fn=ref_text_collate_fn
+        )
+
+def ref_image_collate_fn(batch):
+    return torch.stack(batch)
+
+class RefImageDataloader(DataLoader):
+    def __init__(self, data, batch_size, num_workers, pin_memory):
+        super().__init__(
+            dataset = data,
+            batch_size = batch_size,
+            num_workers= num_workers,
+            pin_memory= pin_memory,
+            collate_fn=ref_image_collate_fn
+        )

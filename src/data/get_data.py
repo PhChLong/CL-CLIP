@@ -108,21 +108,21 @@ REF_DATASET = {
     'text_hf_id': "conceptual_captions"
 }
 
-def get_ref_text_dir(test_pipeline:bool):
+def get_ref_text_data(test_pipeline:bool = False, dataset_length:int = 5000):
     cache_path = CACHE_DIR / REF_DATASET['name_text']
 
     if cache_path.exists():
         print(f"[cache] Loading {REF_DATASET['name_text']} from {cache_path}")
         dataset = load_from_disk(str(cache_path))
     else:
-        print(f"[download] Downloading {REF_DATASET['name']}...")
+        print(f"[download] Downloading {REF_DATASET['name_text']}...")
         dataset = load_dataset(REF_DATASET['text_hf_id'])
         dataset = dataset['train']
-        dataset = dataset.shuffle(seed = 42).select(range(5000))
+        dataset = dataset.shuffle(seed = 42).select(range(dataset_length))
 
         cache_path.mkdir(parents=True, exist_ok=True)
         dataset.save_to_disk(str(cache_path))
-        print(f"[saved] {REF_DATASET['name']} → {cache_path}")
+        print(f"[saved] {REF_DATASET['name_text']} → {cache_path}")
 
     #@ néu chỉ đơn giản là test xem chạy oke ko thì sẽ chỉ lấy 1% data thôi
     if test_pipeline:
@@ -131,14 +131,11 @@ def get_ref_text_dir(test_pipeline:bool):
 
         dataset = dataset.select(range(size))
 
-    feature = train_data.features[label_key]
-    #? ClassLabel có .names, Value('int64') thì không — cần handle cả hai
-    label_names = feature.names if hasattr(feature, 'names') else None
+    caption_dataset = dataset.select_columns(["caption"])
 
     return {
         'name'       : REF_DATASET['name_text'],
-        'label_key'  : label_key,
-        'label_names': label_names,
+        'caption_data': caption_dataset
     }
 
 def get_ref_img_dir() -> Path:

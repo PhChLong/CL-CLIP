@@ -1,7 +1,5 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
 
 class LoRA(nn.Module):
     def __init__(self, layer: nn.Linear, r = 4):
