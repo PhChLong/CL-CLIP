@@ -9,10 +9,6 @@ class LwF_LoRA(ContinualLearningMethod):
         self.trained_task_id = []
 
     def initialize(self, task_id):
-        if task_id in self.trained_task_id:
-            return
-        self.trained_task_id.append(task_id)
-
         old_LoRA = self.wrapper.split_and_get_lora()
         self.old_LoRA = deepcopy(old_LoRA)
         self.wrapper.load_lora(old_LoRA)
@@ -20,7 +16,7 @@ class LwF_LoRA(ContinualLearningMethod):
     def compute_loss(self, images, labels, text_tokenized):
         #@loss_kd
         current_LoRA = self.wrapper.split_and_get_lora()
-        if len(self.trained_task_id) != 1: #? which means this is not the first task
+        if len(self.trained_task_id) != 0: #? which means this is not the first task
             self.wrapper.load_lora(self.old_LoRA)
 
         with torch.inference_mode():

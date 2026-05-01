@@ -145,6 +145,8 @@ class CLIPWrapper(nn.Module):
     #? 'vision_model.encoder.layers.10.self_attn.v_proj': LoRA(in=768, out=768, r=4, scale=0.2500)
 
     def load_lora(self, lora_modules):
+        if lora_modules is None:
+            return
         device = self.model.device
         for layer_name in lora_modules.keys():
             attn, layer_type = layer_name.rsplit('.', maxsplit=1)

@@ -4,7 +4,7 @@ import torch
 
 from src.config import Config
 from src.engine import Train
-from src.methods import FineTune, LwF_LoRA
+from src.methods import FineTune, LwF_LoRA, ZSCL
 from src.models import CLIPWrapper
 
 
@@ -87,6 +87,7 @@ def build_method(method_name):
     methods = {
         "finetune": FineTune,
         "lwf": LwF_LoRA,
+        "zscl": ZSCL,
     }
 
     if method_name not in methods:

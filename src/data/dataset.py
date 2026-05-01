@@ -67,15 +67,21 @@ class RefTextData(Dataset):
         return self.text_data['caption_data'].num_rows
 
     def __getitem__(self, index):
-        return self.text_processor(text = self.text_data['caption_data'][index]['caption'])['input_ids'].squeeze()
+        return self.text_processor(text = self.text_data['caption_data'][index]['caption'])
 
 PADDING_ID = 49407 #? EOS/PAD in CLIP, 49406 is BOS
 def ref_text_collate_fn(batch):
-    max_len = max(_.shape[0] for _ in batch)
-    padded_batch = []
-    for t in batch:
-        padded_batch.append(F.pad(t, (0, max_len - t.shape[0]), value = PADDING_ID))
-    return torch.stack(padded_batch)
+    # batch will be a list of dictionary {'input_ids': tensor(), 'attention_mask': tensor()}
+    input_ids = [tensor['input_ids'].squeeze(0) for tensor in batch]
+    attention_masks = [tensor['attention_mask'].squeeze(0) for tensor in batch]
+    max_len = max(t.shape[0] for t in input_ids)
+    padded_input_ids = []
+    padded_attention_masks = []
+    for t in input_ids:
+        padded_input_ids.append(F.pad(t, (0, max_len - t.shape[0]), value = PADDING_ID))
+    for t in attention_masks:
+        padded_attention_masks.append(F.pad(t, (0, max_len - t.shape[0]), value = 0))
+    return {'input_ids':  torch.stack(padded_input_ids), 'attention_mask': torch.stack(padded_attention_masks)}
 
 class RefTextDataloader(DataLoader):
     def __init__(self, data, batch_size, num_workers, pin_memory):

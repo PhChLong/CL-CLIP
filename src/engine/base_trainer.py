@@ -45,9 +45,9 @@ class Train:
 
         self.method.set_criterion(nn.CrossEntropyLoss())
 
-        #@ check if the method requires task_id
-        if self.method.requires_task_id:
-            self.method.initialize(task_id)
+        # #@ check if the method requires task_id
+        # if self.method.requires_task_id:
+        #     self.method.before_task(task_id)
 
         #* =======================Data and Dataloader============================
 
@@ -174,8 +174,10 @@ class Train:
         ]
 
         for task_id in range(len(self.tasks)):
+            self.method.before_task(task_id)
             self.train(task_id=task_id)
             self.results.append(self.eval_all())
+            self.method.after_task(task_id)
         
         metrics = self.compute_metrics()
         self.save_logs()

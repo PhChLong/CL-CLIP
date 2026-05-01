@@ -27,6 +27,13 @@ class ContinualLearningMethod:
     def compute_loss(self, images, labels, text_tokenized):
         raise NotImplementedError
     
-    def initialize(self, task_id):
+    def initialize(self):
+        pass
+
+    def before_task(self, task_id):
         if self.requires_task_id:
             raise NotImplementedError
+    
+    def after_task(self, task_id):
+        pass
+    
