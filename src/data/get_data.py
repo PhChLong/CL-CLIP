@@ -189,3 +189,8 @@ def get_ref_img_dir() -> Path:
     print("Original KaggleHub path:", downloaded_path)
     print(f"Copied {copied_count} images to:", image_cache_path)
     return image_cache_path
+
+if __name__ == "__main__":
+    get_task_sequence()
+    get_ref_text_data()
+    get_ref_img_dir()
